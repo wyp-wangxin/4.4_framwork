@@ -35,17 +35,29 @@ import java.util.ArrayList;
 class AppTokenList extends ArrayList<AppWindowToken> {
 }
 
+/*
+
+Activity的Token的使用方式与Wallpaper和InputMethod类似，但是其包含更多的内容。毕竟，对于Activity，无论是其组成还是操作都比Wallpaper以及InputMethod复杂得多。
+对此，WMS专为Activity实现了一个WindowToken的子类：AppWindowToken。
+
+既然AppWindowToken是为Activity服务的，那么其声明自然在ActivityManagerService中。具体位置为ActivityStack.startActivityLocked()，也就是启动Activity的时候。相关代码如下：
+
+ActivityStack.startActivityLocked()
+
+*/
+
 /**
  * Version of WindowToken that is specifically for a particular application (or
  * really activity) that is displaying windows.
- */
+ */// wwxx AppWindowToken 从WindowToken 类派生，它是一种比较特殊的WindowToken,代表应用窗口，主要是Activity中创建的顶层窗口。
+//   一个WindowToken对象成员变量appWinowToken为Null,那么他就不是AppWindowToken对象。
 class AppWindowToken extends WindowToken {
     // Non-null only for application tokens.
-    final IApplicationToken appToken;
+    final IApplicationToken appToken;//wwxx appToken用来表示应用Token,它是ActivityManagerService中创建的，代表一个应用。
 
     // All of the windows and child windows that are included in this
     // application token.  Note this list is NOT sorted!
-    final WindowList allAppWindows = new WindowList();
+    final WindowList allAppWindows = new WindowList(); //wwxx allAppWindows也是一个WindowList,它保存了所有拥有相同AppWindowToken类型的Token
     final AppWindowAnimator mAppAnimator;
 
     final WindowAnimator mAnimator;

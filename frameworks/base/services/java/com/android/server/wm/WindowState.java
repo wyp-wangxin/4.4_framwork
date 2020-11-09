@@ -72,11 +72,11 @@ final class WindowState implements WindowManagerPolicy.WindowState {
     final WindowManagerPolicy mPolicy;
     final Context mContext;
     final Session mSession;
-    final IWindow mClient;
+    final IWindow mClient;  //wwxx 搴旂敤杩涚▼涓殑 Window 瀵硅薄
     final int mAppOp;
     // UserId and appId of the owner. Don't display windows of non-current user.
     final int mOwnerUid;
-    final IWindowId mWindowId;
+    final IWindowId mWindowId; 
     WindowToken mToken;
     WindowToken mRootToken;
     AppWindowToken mAppToken;
@@ -88,15 +88,15 @@ final class WindowState implements WindowManagerPolicy.WindowState {
     final DeathRecipient mDeathRecipient;
     final WindowState mAttachedWindow;
     final WindowList mChildWindows = new WindowList();
-    final int mBaseLayer; //wwxx mBaseLayer的值是固定不变的，只和窗口类型有关.mBaseLayer(称为主序)是WindowState的构造方法中赋值
+    final int mBaseLayer; //wwxx mBaseLayer碌脛脰碌脢脟鹿脤露篓虏禄卤盲碌脛拢卢脰禄潞脥麓掳驴脷脌脿脨脥脫脨鹿脴.mBaseLayer(鲁脝脦陋脰梅脨貌)脢脟WindowState碌脛鹿鹿脭矛路陆路篓脰脨赂鲁脰碌
 						 /*mBaseLayer = mPolicy.windowTypeToLayerLw(
                    			attachedWindow.mAttrs.type) * WindowManagerService.TYPE_LAYER_MULTIPLIER + WindowManagerService.TYPE_LAYER_OFFSET;
-                   			等价与:mBaseLayer =窗口类型×10000+1000 */
+                   			碌脠录脹脫毛:mBaseLayer =麓掳驴脷脌脿脨脥隆脕10000+1000 */
     			
-    final int mSubLayer;/*SubLayer(称为子序)，SubLayer值是用来描述一个窗口是否属于另外一个窗口的子窗口，或者说SubLayer值是用来确定子窗口和父窗口之间的相对位置的。
+    final int mSubLayer;/*SubLayer(鲁脝脦陋脳脫脨貌)拢卢SubLayer脰碌脢脟脫脙脌麓脙猫脢枚脪禄赂枚麓掳驴脷脢脟路帽脢么脫脷脕铆脥芒脪禄赂枚麓掳驴脷碌脛脳脫麓掳驴脷拢卢禄貌脮脽脣碌SubLayer脰碌脢脟脫脙脌麓脠路露篓脳脫麓掳驴脷潞脥赂赂麓掳驴脷脰庐录盲碌脛脧脿露脭脦禄脰脙碌脛隆拢
 
-    					 mSubLayer的作用，子序越大，则相对其他兄弟窗口越靠前，反之，越靠后，如果为负数，就处在父窗口的后面.
-    					 子序是根据窗口类型调用subWindowTypeToLayerLw确定的，subWindowTypeToLayerLw同样是在Window的构造方法中调用的。*/
+    					 mSubLayer碌脛脳梅脫脙拢卢脳脫脨貌脭陆麓贸拢卢脭貌脧脿露脭脝盲脣没脨脰碌脺麓掳驴脷脭陆驴驴脟掳拢卢路麓脰庐拢卢脭陆驴驴潞贸拢卢脠莽鹿没脦陋赂潞脢媒拢卢戮脥麓娄脭脷赂赂麓掳驴脷碌脛潞贸脙忙.
+    					 脳脫脨貌脢脟赂霉戮脻麓掳驴脷脌脿脨脥碌梅脫脙subWindowTypeToLayerLw脠路露篓碌脛拢卢subWindowTypeToLayerLw脥卢脩霉脢脟脭脷Window碌脛鹿鹿脭矛路陆路篓脰脨碌梅脫脙碌脛隆拢*/
     final boolean mLayoutAttached;
     final boolean mIsImWindow;
     final boolean mIsWallpaper;
@@ -123,11 +123,11 @@ final class WindowState implements WindowManagerPolicy.WindowState {
     int mLastRequestedWidth;
     int mLastRequestedHeight;
 
-    int mLayer;      /*wwxx mLayer，表示窗口在Ｚ轴的位置，mLayer值越小，
-    			       窗口越靠后，mLayer值越大，窗口越靠前，
-    			       最前面的一个窗口就作为焦点窗口，可以接收触摸事件.
-    			       mLayer是通过WindowState的另一个成员变量mBaseLayer的值计算得到，
-    			       mBaseLayer的值是固定不变的，只和窗口类型有关。*/
+    int mLayer;      /*wwxx mLayer拢卢卤铆脢戮麓掳驴脷脭脷拢脷脰谩碌脛脦禄脰脙拢卢mLayer脰碌脭陆脨隆拢卢
+    			       麓掳驴脷脭陆驴驴潞贸拢卢mLayer脰碌脭陆麓贸拢卢麓掳驴脷脭陆驴驴脟掳拢卢
+    			       脳卯脟掳脙忙碌脛脪禄赂枚麓掳驴脷戮脥脳梅脦陋陆鹿碌茫麓掳驴脷拢卢驴脡脪脭陆脫脢脮麓楼脙镁脢脗录镁.
+    			       mLayer脢脟脥篓鹿媒WindowState碌脛脕铆脪禄赂枚鲁脡脭卤卤盲脕驴mBaseLayer碌脛脰碌录脝脣茫碌脙碌陆拢卢
+    			       mBaseLayer碌脛脰碌脢脟鹿脤露篓虏禄卤盲碌脛拢卢脰禄潞脥麓掳驴脷脌脿脨脥脫脨鹿脴隆拢*/
     boolean mHaveFrame;
     boolean mObscured;
     boolean mTurnOnScreen;

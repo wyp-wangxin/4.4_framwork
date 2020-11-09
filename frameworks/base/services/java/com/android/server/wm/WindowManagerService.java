@@ -317,6 +317,9 @@ public class WindowManagerService extends IWindowManager.Stub
 
     final boolean mLimitedAlphaCompositing;
 
+    /*WindowManagerPolicyï¼ˆWMPï¼‰ç±»å‹çš„å˜é‡ã€‚WindowManagerPolicyæ˜¯çª—å£ç®¡ç†ç­–ç•¥çš„æ¥å£ç±»ï¼Œ
+    ç”¨æ¥å®šä¹‰ä¸€ä¸ªçª—å£ç­–ç•¥æ‰€è¦éµå¾ªçš„é€šç”¨è§„èŒƒï¼Œå¹¶æä¾›äº†WindowManageræ‰€æœ‰çš„ç‰¹å®šçš„UIè¡Œä¸ºã€‚
+    å®ƒçš„å…·ä½“å®ç°ç±»ä¸ºPhoneWindowManagerï¼Œè¿™ä¸ªå®ç°ç±»åœ¨WMSåˆ›å»ºæ—¶è¢«åˆ›å»ºã€‚WMPå…è®¸å®šåˆ¶çª—å£å±‚çº§å’Œç‰¹æ®Šçª—å£ç±»å‹ä»¥åŠå…³é”®çš„è°ƒåº¦å’Œå¸ƒå±€ã€‚*/
     final WindowManagerPolicy mPolicy = PolicyManager.makeNewWindowManager();
 
     final IActivityManager mActivityManager;
@@ -329,6 +332,9 @@ public class WindowManagerService extends IWindowManager.Stub
 
     /**
      * All currently active sessions with clients.
+
+        å®ƒä¸»è¦ç”¨äºè¿›ç¨‹é—´é€šä¿¡ï¼Œå…¶ä»–çš„åº”ç”¨ç¨‹åºè¿›ç¨‹æƒ³è¦å’ŒWMSè¿›ç¨‹è¿›è¡Œé€šä¿¡å°±éœ€è¦ç»è¿‡Sessionï¼Œ
+        å¹¶ä¸”æ¯ä¸ªåº”ç”¨ç¨‹åºè¿›ç¨‹éƒ½ä¼šå¯¹åº”ä¸€ä¸ªSessionï¼ŒWMSä¿å­˜è¿™äº›Sessionç”¨æ¥è®°å½•æ‰€æœ‰å‘WMSæå‡ºçª—å£ç®¡ç†æœåŠ¡çš„å®¢æˆ·ç«¯ã€‚     
      */
     final HashSet<Session> mSessions = new HashSet<Session>();
 
@@ -336,17 +342,49 @@ public class WindowManagerService extends IWindowManager.Stub
      * Mapping from an IWindow IBinder to the server's Window object.
      * This is also used as the lock for all of our state.
      * NOTE: Never call into methods that lock ActivityManagerService while holding this object.
+
+
+    wwxx
+    WMSä¸­ï¼Œé€šè¿‡mWindowMapï¼ˆWindowHashMap ï¼‰ä¿å­˜æ‰€æœ‰çš„WindowStateå¯¹è±¡
+    WindowState ä¸­ä¿å­˜äº† WMS å¯¹è±¡ã€WMP å¯¹è±¡ã€Session å¯¹è±¡å’Œ IWindowå¯¹è±¡,
+    ä¸€ä¸ª WindowState å¯¹è±¡å°±å¯¹åº”ç€ä¸€ä¸ªåº”ç”¨è¿›ç¨‹ä¸­çš„ Window å¯¹è±¡; IWindow -> ViewRootImpl.W extends IWindow.Stub
+
+    WindowStateç”¨äºä¿å­˜çª—å£çš„ä¿¡æ¯ï¼Œåœ¨WMSä¸­å®ƒç”¨æ¥æè¿°ä¸€ä¸ªçª—å£ã€‚ç»¼ä¸Šå¾—å‡ºç»“è®ºï¼ŒmWindowMapå°±æ˜¯ç”¨æ¥ä¿å­˜WMSä¸­å„ç§çª—å£çš„é›†åˆã€‚
      */
     final HashMap<IBinder, WindowState> mWindowMap = new HashMap<IBinder, WindowState>();
 
     /**
      * Mapping from a token IBinder to a WindowToken object.
+
+    WMSæˆå‘˜å˜é‡mTokenMap: ä¿å­˜æ‰€æœ‰çš„WindowTokenå¯¹è±¡; ä»¥IBinderä¸ºkey,å¯ä»¥æ˜¯IAppWindowTokenæˆ–è€…å…¶ä»–Binderçš„Bpç«¯;
+    IBinder -> ActivityRecord.Token extends IApplicationToken.Stub
+
+    ä¸€ä¸ª WindowToken å°±ä»£è¡¨ç€ä¸€ä¸ªåº”ç”¨ç»„ä»¶ï¼Œåº”ç”¨ç»„ä»¶åŒ…æ‹¬ï¼šActivityã€InputMethod ç­‰ã€‚
+    åœ¨ WMS ä¸­ï¼Œä¼šå°†å±äºåŒä¸€ WindowToken çš„åšç»Ÿä¸€å¤„ç†ï¼Œæ¯”å¦‚åœ¨å¯¹çª—å£è¿›è¡Œ ZOrder æ’åºæ—¶ï¼Œä¼šå°†å±äºç»Ÿä¸€ WindowToken çš„æ’åœ¨ä¸€èµ·
+
+    WindowToken ä¹Ÿå…·æœ‰ä»¤ç‰Œçš„ä½œç”¨ã€‚åº”ç”¨ç»„ä»¶åœ¨åˆ›å»º Window æ—¶éƒ½éœ€è¦æä¾›ä¸€ä¸ªæœ‰æ•ˆçš„ WindowToken ä»¥è¡¨æ˜è‡ªå·±çš„èº«ä»½ï¼Œ
+    å¹¶ä¸”çª—å£çš„ç±»å‹å¿…é¡»ä¸æ‰€æŒæœ‰çš„ WindowToken ç±»å‹ä¿æŒä¸€è‡´ã€‚
+
+    è§ addWindowToken å‡½æ•°
      */
     final HashMap<IBinder, WindowToken> mTokenMap = new HashMap<IBinder, WindowToken>();
 
     /**
      * List of window tokens that have finished starting their application,
      * and now need to have the policy remove their windows.
+    wwxx
+    ArrayListç±»å‹çš„å˜é‡ï¼Œå…ƒç´ ç±»å‹ä¸ºAppWindowTokenï¼Œå®ƒæ˜¯WindowTokençš„å­ç±»ã€‚è¦æƒ³ç†è§£mFinishedStartingçš„å«ä¹‰ï¼Œéœ€è¦å…ˆäº†è§£WindowTokenæ˜¯ä»€ä¹ˆã€‚
+    WindowTokenä¸»è¦æœ‰ä¸¤ä¸ªä½œç”¨ï¼š
+
+    ç¬¬ä¸€ä¸ªï¼šå¯ä»¥ç†è§£ä¸ºçª—å£ä»¤ç‰Œï¼Œå½“åº”ç”¨ç¨‹åºæƒ³è¦å‘WMSç”³è¯·æ–°åˆ›å»ºä¸€ä¸ªçª—å£ï¼Œåˆ™éœ€è¦å‘WMSå‡ºç¤ºæœ‰æ•ˆçš„WindowTokenã€‚AppWindowTokenä½œä¸ºWindowTokençš„å­ç±»ï¼Œä¸»è¦ç”¨æ¥æè¿°åº”ç”¨ç¨‹åºçš„WindowTokenç»“æ„ï¼Œ
+    åº”ç”¨ç¨‹åºä¸­æ¯ä¸ªActivityéƒ½å¯¹åº”ä¸€ä¸ªAppWindowTokenã€‚
+
+    ç¬¬äºŒä¸ªï¼šWindowTokenä¼šå°†ç›¸åŒç»„ä»¶ï¼ˆæ¯”å¦‚Acitivityï¼‰çš„çª—å£ï¼ˆWindowStateï¼‰é›†åˆåœ¨ä¸€èµ·ï¼Œæ–¹ä¾¿ç®¡ç†ã€‚
+
+    mFinishedStartingå°±æ˜¯ç”¨äºå­˜å‚¨å·²ç»å®Œæˆå¯åŠ¨çš„åº”ç”¨ç¨‹åºçª—å£ï¼ˆæ¯”å¦‚Acitivityï¼‰çš„AppWindowTokençš„åˆ—è¡¨ã€‚
+    é™¤äº†mFinishedStartingï¼Œè¿˜æœ‰ç±»ä¼¼çš„mFinishedEarlyAnimå’ŒmWindowReplacementTimeoutsï¼Œ
+    å…¶ä¸­mFinishedEarlyAnimå­˜å‚¨äº†å·²ç»å®Œæˆçª—å£ç»˜åˆ¶å¹¶ä¸”ä¸éœ€è¦å±•ç¤ºä»»ä½•å·²ä¿å­˜surfaceçš„åº”ç”¨ç¨‹åºçª—å£çš„AppWindowTokenã€‚
+    mWindowReplacementTimeoutå­˜å‚¨äº†ç­‰å¾…æ›´æ¢çš„åº”ç”¨ç¨‹åºçª—å£çš„AppWindowTokenï¼Œå¦‚æœæ›´æ¢ä¸åŠæ—¶ï¼Œæ—§çª—å£å°±éœ€è¦è¢«å¤„ç†ã€‚
      */
     final ArrayList<AppWindowToken> mFinishedStarting = new ArrayList<AppWindowToken>();
 
@@ -360,6 +398,12 @@ public class WindowManagerService extends IWindowManager.Stub
      * Windows that are being resized.  Used so we can tell the client about
      * the resize after closing the transaction in which we resized the
      * underlying surface.
+    ArrayListç±»å‹çš„å˜é‡ï¼Œå…ƒç´ ç±»å‹ä¸ºWindowStateã€‚
+    mResizingWindowsæ˜¯ç”¨æ¥å­˜å‚¨æ­£åœ¨è°ƒæ•´å¤§å°çš„çª—å£çš„åˆ—è¡¨ã€‚ä¸mResizingWindowsç±»ä¼¼çš„è¿˜æœ‰mPendingRemoveã€mDestroySurfaceå’ŒmDestroyPreservedSurfaceç­‰ç­‰ã€‚
+    å…¶ä¸­mPendingRemoveæ˜¯åœ¨å†…å­˜è€—å°½æ—¶è®¾ç½®çš„ï¼Œé‡Œé¢å­˜æœ‰éœ€è¦å¼ºåˆ¶åˆ é™¤çš„çª—å£ã€‚
+    mDestroySurfaceé‡Œé¢å­˜æœ‰éœ€è¦è¢«Destroyçš„Surfaceã€‚
+    mDestroyPreservedSurfaceé‡Œé¢å­˜æœ‰çª—å£éœ€è¦ä¿å­˜çš„ç­‰å¾…é”€æ¯çš„Surfaceï¼Œ
+    ä¸ºä»€ä¹ˆçª—å£è¦ä¿å­˜è¿™äº›Surfaceï¼Ÿè¿™æ˜¯å› ä¸ºå½“çª—å£ç»å†Surfaceå˜åŒ–æ—¶ï¼Œçª—å£éœ€è¦ä¸€ç›´ä¿æŒæ—§Surfaceï¼Œç›´åˆ°æ–°Surfaceçš„ç¬¬ä¸€å¸§ç»˜åˆ¶å®Œæˆã€‚     
      */
     final ArrayList<WindowState> mResizingWindows = new ArrayList<WindowState>();
 
@@ -490,7 +534,7 @@ public class WindowManagerService extends IWindowManager.Stub
     final DisplayMetrics mTmpDisplayMetrics = new DisplayMetrics();
     final DisplayMetrics mCompatDisplayMetrics = new DisplayMetrics();
 
-    final H mH = new H();
+    final H mH = new H();//wwxx Hç±»å‹çš„å˜é‡ï¼Œç³»ç»Ÿçš„Handlerç±»ï¼Œç”¨äºå°†ä»»åŠ¡åŠ å…¥åˆ°ä¸»çº¿ç¨‹çš„æ¶ˆæ¯é˜Ÿåˆ—ä¸­ï¼Œè¿™æ ·ä»£ç é€»è¾‘å°±ä¼šåœ¨ä¸»çº¿ç¨‹ä¸­æ‰§è¡Œã€‚
 
     final Choreographer mChoreographer = Choreographer.getInstance();
 
@@ -547,6 +591,9 @@ public class WindowManagerService extends IWindowManager.Stub
     float mTransitionAnimationScale = 1.0f;
     float mAnimatorDurationScale = 1.0f;
 
+/*InputManagerServiceç±»å‹çš„å˜é‡ï¼Œè¾“å…¥ç³»ç»Ÿçš„ç®¡ç†è€…ã€‚InputManagerServiceï¼ˆIMSï¼‰ä¼šå¯¹è§¦æ‘¸äº‹ä»¶è¿›è¡Œå¤„ç†ï¼Œ
+å®ƒä¼šå¯»æ‰¾ä¸€ä¸ªæœ€åˆé€‚çš„çª—å£æ¥å¤„ç†è§¦æ‘¸åé¦ˆä¿¡æ¯ï¼ŒWMSæ˜¯çª—å£çš„ç®¡ç†è€…ï¼Œ
+å› æ­¤ï¼ŒWMSâ€œç†æ‰€åº”å½“â€çš„æˆä¸ºäº†è¾“å…¥ç³»ç»Ÿçš„ä¸­è½¬ç«™ï¼ŒWMSåŒ…å«äº†IMSçš„å¼•ç”¨ä¸è¶³ä¸ºæ€ª*/
     final InputManagerService mInputManager;
     final DisplayManagerService mDisplayManagerService;
     final DisplayManager mDisplayManager;
@@ -604,7 +651,7 @@ public class WindowManagerService extends IWindowManager.Stub
     /** Only do a maximum of 6 repeated layouts. After that quit */
     private int mLayoutRepeatCount;
 
-    final WindowAnimator mAnimator;
+    final WindowAnimator mAnimator;//wwxx WindowAnimatorç±»å‹çš„å˜é‡ï¼Œç”¨äºç®¡ç†çª—å£çš„åŠ¨ç”»ä»¥åŠç‰¹æ•ˆåŠ¨ç”»ã€‚
 
     SparseArray<Task> mTaskIdToTask = new SparseArray<Task>();
     SparseArray<TaskStack> mStackIdToStack = new SparseArray<TaskStack>();
@@ -909,19 +956,18 @@ public class WindowManagerService extends IWindowManager.Stub
     private int addAppWindowToListLocked(final WindowState win) {
         final IWindow client = win.mClient;
         final WindowToken token = win.mToken;
-        //»ñÈ¡WindowStateÒª²åÈëµÄÆÁÄ»¶ÔÏódisplayContent
+        //è·å–WindowStateè¦æ’å…¥çš„å±å¹•å¯¹è±¡displayContent
         final DisplayContent displayContent = win.mDisplayContent;
-		//»ñÈ¡µ±Ç°ÆÁÄ»ÉÏËùÓĞ´°¿ÚÁĞ±í¶ÔÏówindows
+		//è·å–å½“å‰å±å¹•ä¸Šæ‰€æœ‰çª—å£åˆ—è¡¨å¯¹è±¡windows
         final WindowList windows = win.getWindowList();
         final int N = windows.size();
-         //»ñÈ¡ÊôÓÚdisplayContentÕâ¸öÆÁÄ»ÉÏ£¬ÊôÓÚtokenËùÃèÊöµÄWindowList£¬
-         //WindowList´æ·ÅÁËtokenËùÃèÊöµÄWindowStateµÄÁĞ±í
+        //è·å–å±äºdisplayContentè¿™ä¸ªå±å¹•ä¸Šï¼Œå±äºtokenæ‰€æè¿°çš„WindowListï¼ŒWindowListå­˜æ”¾äº†tokenæ‰€æè¿°çš„WindowStateçš„åˆ—è¡¨
         WindowList tokenWindowList = getTokenWindowsOnDisplay(token, displayContent);
         int tokenWindowsPos = 0;
         int windowListPos = tokenWindowList.size();
-        //tokenWindowList²»Îªnull,ËµÃ÷WMSÖĞÒÑ¾­ÓĞÁËºÍ´ı²åÈë´°¿ÚwinÒ»ÑùµÄtoken,ÄÇÃ´¾Í»áÊ¹ÓÃ addAppWindowToTokenListLocked À´²åÈë
-   		//±ÈÈçµ±Ò»¸öActivity´°¿ÚÉÏµ¯³öÒ»¸öDialog´°¿Ú£¬
-¡¡¡¡¡¡¡¡//ÄÇÃ´Õâ¸ö´ı²åÈëµÄDialog´°¿ÚµÄtokenºÍActivity´°¿ÚµÄtokenÊÇÒ»ÑùµÄ£¬¶¼ÊÇAppWindowToken,¾Í»á×ßÕâ¸öÂß¼­
+        //tokenWindowListä¸ä¸ºnull,è¯´æ˜WMSä¸­å·²ç»æœ‰äº†å’Œå¾…æ’å…¥çª—å£winä¸€æ ·çš„token,é‚£ä¹ˆå°±ä¼šä½¿ç”¨addAppWindowToTokenListLockedæ¥æ’å…¥
+        //æ¯”å¦‚å½“ä¸€ä¸ªActivityçª—å£ä¸Šå¼¹å‡ºä¸€ä¸ªDialogçª—å£ï¼Œ
+ã€€ã€€ã€€   //é‚£ä¹ˆè¿™ä¸ªå¾…æ’å…¥çš„Dialogçª—å£çš„tokenå’ŒActivityçª—å£çš„tokenæ˜¯ä¸€æ ·çš„ï¼Œéƒ½æ˜¯AppWindowToken,å°±ä¼šèµ°è¿™ä¸ªé€»è¾‘
         if (!tokenWindowList.isEmpty()) {
             // If this application has existing windows, we
             // simply place the new window on top of them... but
@@ -965,23 +1011,23 @@ public class WindowManagerService extends IWindowManager.Stub
                 + " (token=" + token + ")");
         // Figure out where the window should go, based on the
         // order of applications.
-        //pos¼ÇÂ¼Ô´Âë²åÈëµÄWindowState
+        //posè®°å½•æºç æ’å…¥çš„WindowState
         WindowState pos = null;
-		//±éÀúÕâ¸öÆÁÄ»ÖĞµÄTask
+		//éå†è¿™ä¸ªå±å¹•ä¸­çš„Task
         final ArrayList<Task> tasks = displayContent.getTasks();
         int taskNdx;
         int tokenNdx = -1;
-        //×Ô¶¥ÏòÏÂ±éÀúTask£¬Ã¿Ò»¸öTaskÖĞÈ¡³öËüµÄtokensÁĞ±í
+         //è‡ªé¡¶å‘ä¸‹éå†Taskï¼Œæ¯ä¸€ä¸ªTaskä¸­å–å‡ºå®ƒçš„tokensåˆ—è¡¨
         for (taskNdx = tasks.size() - 1; taskNdx >= 0; --taskNdx) {
             AppTokenList tokens = tasks.get(taskNdx).mAppTokens;
-            //×Ô¶¥ÏòÏÂ±éÀútokensÁĞ±í£¬¾Í¿ÉÒÔÈ¡³öAppWindowToken
+            //è‡ªé¡¶å‘ä¸‹éå†tokensåˆ—è¡¨ï¼Œå°±å¯ä»¥å–å‡ºAppWindowToken
             for (tokenNdx = tokens.size() - 1; tokenNdx >= 0; --tokenNdx) {
                 final AppWindowToken t = tokens.get(tokenNdx);
-                //Ò»°ãÀ´Ëµ£¬µÚÒ»¸ö¾ÍÊÇÒªÆ¥ÅäµÄAppWindowToken£¬ÒòÎª¶¼ÊÇ×Ô¶¥ÏòÏÂ±éÀúµÄ£¬Õâ¸öÊ±ºò£¬Ìø³öÑ­»·
+                //ä¸€èˆ¬æ¥è¯´ï¼Œç¬¬ä¸€ä¸ªå°±æ˜¯è¦åŒ¹é…çš„AppWindowTokenï¼Œå› ä¸ºéƒ½æ˜¯è‡ªé¡¶å‘ä¸‹éå†çš„ï¼Œè¿™ä¸ªæ—¶å€™ï¼Œè·³å‡ºå¾ªç¯
                 if (t == token) {
-                //tokenNdx¼ÇÂ¼×ÅAppWindowTokenÔÚtokensÖĞµÄÎ»ÖÃ
+                //tokenNdxè®°å½•ç€AppWindowTokenåœ¨tokensä¸­çš„ä½ç½®
                     --tokenNdx;
-                    //Èç¹ûtokenNdxĞ¡ÓÚ0,ÄÇÃ´ÊÇÎŞĞ§µÄ£¬ĞèÒªÈ¡ÏÂÒ»¸öTask,°ÑËü²åÈëÏÂÒ»¸öTaskµÄ¶¥²¿
+                   //å¦‚æœtokenNdxå°äº0,é‚£ä¹ˆæ˜¯æ— æ•ˆçš„ï¼Œéœ€è¦å–ä¸‹ä¸€ä¸ªTask,æŠŠå®ƒæ’å…¥ä¸‹ä¸€ä¸ªTaskçš„é¡¶éƒ¨
                     if (tokenNdx < 0) {
                         --taskNdx;
                         if (taskNdx >= 0) {
@@ -994,11 +1040,11 @@ public class WindowManagerService extends IWindowManager.Stub
                 // We haven't reached the token yet; if this token
                 // is not going to the bottom and has windows on this display, we can
                 // use it as an anchor for when we do reach the token.
-                //Èç¹ûµ±Ç°tasksÖĞµÚÒ»¸öAppWindowToken²»µÈÓÚt£¬ÄÇÃ´Ö´ĞĞgetTokenWindowsOnDisplay£¬
-¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡//»ñÈ¡ÊôÓÚdisplayContentÕâ¸öÆÁÄ»ÉÏ£¬ÊôÓÚtokenËùÃèÊöµÄWindowList
+                //å¦‚æœå½“å‰tasksä¸­ç¬¬ä¸€ä¸ªAppWindowTokenä¸ç­‰äºtï¼Œé‚£ä¹ˆæ‰§è¡ŒgetTokenWindowsOnDisplayï¼Œ
+ã€€ã€€ã€€ã€€ã€€ã€€ã€€ã€€ã€€//è·å–å±äº displayContent è¿™ä¸ªå±å¹•ä¸Šï¼Œå±äºtokenæ‰€æè¿°çš„WindowList
                 tokenWindowList = getTokenWindowsOnDisplay(t, displayContent);
                 if (!t.sendingToBottom && tokenWindowList.size() > 0) {
-                //pos¾ÍÖ¸Ïòµ±Ç°±éÀúµ½AppWindowTokenËùÊôµÄ×îÏÂÃæÒ»¸öµÄWindowState
+                //poså°±æŒ‡å‘å½“å‰éå†åˆ°AppWindowTokenæ‰€å±çš„æœ€ä¸‹é¢ä¸€ä¸ªçš„WindowState
                     pos = tokenWindowList.get(0);
                 }
             }
@@ -1011,7 +1057,7 @@ public class WindowManagerService extends IWindowManager.Stub
         // We now know the index into the apps.  If we found
         // an app window above, that gives us the position; else
         // we need to look some more.
-        //Èç¹ûpos²»Îªnull£¬ËµÃ÷posÊÇÉÏÃæÖ¸ÏòµÄµ±Ç°±éÀúµ½AppWindowTokenËùÊôµÄ×îÏÂÃæÒ»¸öµÄWindowState
+        ///å¦‚æœposä¸ä¸ºnullï¼Œè¯´æ˜posæ˜¯ä¸Šé¢æŒ‡å‘çš„å½“å‰éå†åˆ°AppWindowTokenæ‰€å±çš„æœ€ä¸‹é¢ä¸€ä¸ªçš„WindowState
         if (pos != null) {
             // Move behind any windows attached to this one.
             WindowToken atoken = mTokenMap.get(pos.mClient.asBinder());
@@ -1022,29 +1068,29 @@ public class WindowManagerService extends IWindowManager.Stub
                 if (NC > 0) {
                     WindowState bottom = tokenWindowList.get(0);
                     if (bottom.mSubLayer < 0) {
-                    //ÅĞ¶ÏposµÄtokenËùÃèÊöµÄ´°¿ÚÁĞ±íÖĞ×îÏÂÃæµÄ´°¿Ú¶ÔÏóbottomµÄ×ÓĞòÊÇ·ñĞ¡ÓÚ£°£¬
-           			//Èç¹ûĞ¡ÓÚ£°£¬posĞèÒªÖ¸ÏòÕâ¸ö´°¿Ú£¬ È·±£posÖ¸ÏòµÄÊÇÉÏÃæAppWindowTokenµÄ×îºóÒ»¸öWindowState
+                    //åˆ¤æ–­posçš„tokenæ‰€æè¿°çš„çª—å£åˆ—è¡¨ä¸­æœ€ä¸‹é¢çš„çª—å£å¯¹è±¡bottomçš„å­åºæ˜¯å¦å°äºï¼ï¼Œ
+                    //å¦‚æœå°äºï¼ï¼Œposéœ€è¦æŒ‡å‘è¿™ä¸ªçª—å£ï¼Œ ç¡®ä¿posæŒ‡å‘çš„æ˜¯ä¸Šé¢AppWindowTokençš„æœ€åä¸€ä¸ªWindowState
                         pos = bottom;
                     }
                 }
             }
-            //²åÈë×îÏÂÃæµÄÒ»¸öWindowStateµÄºóÃæ
+            //æ’å…¥æœ€ä¸‹é¢çš„ä¸€ä¸ªWindowStateçš„åé¢
             placeWindowBefore(pos, win);
             return tokenWindowsPos;
         }
 
         // Continue looking down until we find the first
         // token that has windows on this display.
-        //×ßµ½ÕâÀï£¬ËµÃ÷µÚÒ»¸ö¾ÍÊÇÒªÆ¥ÅäµÄAppWindowToken£¬taskNdx¼ÇÂ¼ÁËÊÇÔÚÄÄÒ»¸ötaskNdxÖĞ£¬£¬ÔÙ´Î×Ô¶¨ÏòÏÂ±éÀú
+        //èµ°åˆ°è¿™é‡Œï¼Œè¯´æ˜ç¬¬ä¸€ä¸ªå°±æ˜¯è¦åŒ¹é…çš„AppWindowTokenï¼ŒtaskNdxè®°å½•äº†æ˜¯åœ¨å“ªä¸€ä¸ªtaskNdxä¸­ï¼Œï¼Œå†æ¬¡è‡ªå®šå‘ä¸‹éå†
         for ( ; taskNdx >= 0; --taskNdx) {
             AppTokenList tokens = tasks.get(taskNdx).mAppTokens;
             for ( ; tokenNdx >= 0; --tokenNdx) {
-            //»ñÈ¡¶¥²¿×î¶¥²¿TaskÖĞ×î¶¥²¿µÄAppWindowToken
+            //è·å–é¡¶éƒ¨æœ€é¡¶éƒ¨Taskä¸­æœ€é¡¶éƒ¨çš„AppWindowToken
                 final AppWindowToken t = tokens.get(tokenNdx);
                 tokenWindowList = getTokenWindowsOnDisplay(t, displayContent);
                 final int NW = tokenWindowList.size();
                 if (NW > 0) {
-                //pos¾¡¿ÉÄÜµÄÖ¸Ïò×î¶¥²¿TASKÖĞ×î¶¥²¿µÄAppWindowTokenËùÃèÊöµÄWindowState
+                //poså°½å¯èƒ½çš„æŒ‡å‘æœ€é¡¶éƒ¨TASKä¸­æœ€é¡¶éƒ¨çš„AppWindowTokenæ‰€æè¿°çš„WindowState
                     pos = tokenWindowList.get(NW-1);
                     break;
                 }
@@ -1055,7 +1101,7 @@ public class WindowManagerService extends IWindowManager.Stub
             }
         }
         
-		//pos!= null,ËµÃ÷ÕÒµ½ÁË£¬¼ì²éposÃèÊöµÄ´°¿ÚÉÏÃæÓĞÃ»ÓĞ×Ó´°¿Ú£¬Èç¹ûÓĞ£¬ĞèÒª°ÑposÖ¸Ïò×î¶¥²¿µÄ×Ó´°¿Ú
+		//pos!= null,è¯´æ˜æ‰¾åˆ°äº†ï¼Œæ£€æŸ¥posæè¿°çš„çª—å£ä¸Šé¢æœ‰æ²¡æœ‰å­çª—å£ï¼Œå¦‚æœæœ‰ï¼Œéœ€è¦æŠŠposæŒ‡å‘æœ€é¡¶éƒ¨çš„å­çª—å£
         if (pos != null) {
             // Move in front of any windows attached to this
             // one.
@@ -1069,14 +1115,14 @@ public class WindowManagerService extends IWindowManager.Stub
                     }
                 }
             }
-            //°Ñwin²åÈëµ½posµÄºóÃæ
+            //æŠŠwinæ’å…¥åˆ°posçš„åé¢
             placeWindowAfter(pos, win);
             return tokenWindowsPos;
         }
 
         // Just search for the start of this layer.
-        // ×ßµ½ÕâÀï£¬ËµÃ÷¸ÃWindowStateÊÇĞÂÆô¶¯µÄÒ»¸öactivityµÄµÚÒ»¸ö´°¿Ú£¨ĞÂtaskµÄµÚÒ»¸öWindowState£©£¬
-   		// ÒòÎªĞÂÆô¶¯µÄ´°¿ÚÊÇÃ»ÓĞ¿É²Î¿¼µÄactivity´°¿Ú£¬ËùÒÔĞèÒªÍ¨¹ımBaseLayerÈ¥²åÈë
+   // èµ°åˆ°è¿™é‡Œï¼Œè¯´æ˜è¯¥WindowStateæ˜¯æ–°å¯åŠ¨çš„ä¸€ä¸ªactivityçš„ç¬¬ä¸€ä¸ªçª—å£ï¼ˆæ–°taskçš„ç¬¬ä¸€ä¸ªWindowStateï¼‰ï¼Œ
+   // å› ä¸ºæ–°å¯åŠ¨çš„çª—å£æ˜¯æ²¡æœ‰å¯å‚è€ƒçš„activityçª—å£ï¼Œæ‰€ä»¥éœ€è¦é€šè¿‡mBaseLayerå»æ’å…¥
         final int myLayer = win.mBaseLayer;
         int i;
         for (i = 0; i < N; i++) {
@@ -1173,18 +1219,16 @@ public class WindowManagerService extends IWindowManager.Stub
     private void addWindowToListInOrderLocked(final WindowState win, boolean addToToken) {
         if (DEBUG_FOCUS_LIGHT) Slog.d(TAG, "addWindowToListInOrderLocked: win=" + win +
                 " Callers=" + Debug.getCallers(4));
+   /*
+        å…ˆçœ‹çª—å£çš„çˆ¶çª—å£mAttachedWindowæ˜¯ä¸æ˜¯å­˜åœ¨ï¼Œå¦‚æœä¸å­˜åœ¨ï¼Œè¯´æ˜è¿™ä¸ªçª—å£åº”ç”¨ç±»å‹çš„çª—å£ï¼Œåä¹‹å°±æ˜¯ä¸€ä¸ªå­çª—å£ï¼Œèµ°elseåˆ†ä¹‹ï¼Œ
+        ä½¿ç”¨ addAttachedWindowToListLocked æ–¹æ³•å°†å­çª—å£æ’å…¥çª—å£åˆ—è¡¨ã€‚å‡è®¾ä¸æ˜¯ä¸€ä¸ªå­çª—å£ï¼Œé‚£ä¹ˆéœ€è¦å–å‡ºè¿™ä¸ªçª—å£çš„ token,
+        å¦‚æœtokené‡Œé¢çš„ appWindowToken ä¸ä¸ºnullçš„è¯ï¼Œå°±è¡¨æ˜è¿™æ˜¯ä¸€ä¸ªActivityçª—å£ï¼Œéœ€è¦è°ƒç”¨ addAppWindowToListLocked å°†Activityçª—å£æ’å…¥çª—å£å †æ ˆï¼Œ
+        åä¹‹ä½¿ç”¨ addFreeWindowToListLocked æ–¹æ³•å°†éActivityçª—å£æ’å…¥çª—å£å †æ ˆã€‚
 
-			/*
-			ÏÈ¿´´°¿ÚµÄ¸¸´°¿ÚmAttachedWindowÊÇ²»ÊÇ´æÔÚ£¬Èç¹û²»´æÔÚ£¬ËµÃ÷Õâ¸ö´°¿ÚÓ¦ÓÃÀàĞÍµÄ´°¿Ú£¬
-			·´Ö®¾ÍÊÇÒ»¸ö×Ó´°¿Ú£¬×ßelse·ÖÖ®£¬Ê¹ÓÃaddAttachedWindowToListLocked·½·¨½«×Ó´°¿Ú²åÈë´°¿ÚÁĞ±í¡£
-			¼ÙÉè²»ÊÇÒ»¸ö×Ó´°¿Ú£¬ÄÇÃ´ĞèÒªÈ¡³öÕâ¸ö´°¿ÚµÄtoken,Èç¹ûtokenÀïÃæµÄappWindowToken²»ÎªnullµÄ»°£¬
-			¾Í±íÃ÷ÕâÊÇÒ»¸öActivity´°¿Ú£¬ĞèÒªµ÷ÓÃaddAppWindowToListLocked½«Activity´°¿Ú²åÈë´°¿Ú¶ÑÕ»£¬
-			·´Ö®Ê¹ÓÃaddFreeWindowToListLocked·½·¨½«·ÇActivity´°¿Ú²åÈë´°¿Ú¶ÑÕ»
-
-			*/        
+   */
         if (win.mAttachedWindow == null) {
             final WindowToken token = win.mToken;
-            //wwxx tokenWindowsPos±íÊ¾¸ÃWindowState¶ÔÏóÔÚËùÊôÍ¬Ò»WindowTokenµÄËùÓĞWindowStateÖĞµÄÎ»ÖÃ
+             //tokenWindowsPosè¡¨ç¤ºè¯¥WindowStateå¯¹è±¡åœ¨æ‰€å±åŒä¸€WindowTokençš„æ‰€æœ‰WindowStateä¸­çš„ä½ç½®
             int tokenWindowsPos = 0;
             if (token.appWindowToken != null) {
                 tokenWindowsPos = addAppWindowToListLocked(win);
@@ -1193,8 +1237,8 @@ public class WindowManagerService extends IWindowManager.Stub
             }
             if (addToToken) {
                 if (DEBUG_ADD_REMOVE) Slog.v(TAG, "Adding " + win + " to " + token);
-                // token.windows¾ÍÊÇÃèÊöËùÊô¸ÃtokenÏÂµÄËùÓĞWindowState¶ÔÏó
-          ¡¡  	// ±ÈÈçÒ»¸öactivityµ¯³öÁËÒ»¸öAlertDialog´°¿Ú£¬ÕâÁ½¸ö´°¿ÚµÄAppWindowTokenÊÇÒ»¸ö
+            // token.windows å°±æ˜¯æè¿°æ‰€å±è¯¥tokenä¸‹çš„æ‰€æœ‰WindowStateå¯¹è±¡
+          ã€€ // æ¯”å¦‚ä¸€ä¸ªactivityå¼¹å‡ºäº†ä¸€ä¸ªAlertDialogçª—å£ï¼Œè¿™ä¸¤ä¸ªçª—å£çš„AppWindowTokenæ˜¯ä¸€ä¸ª
                 token.windows.add(tokenWindowsPos, win);
             }
         } else {
@@ -2147,17 +2191,15 @@ public class WindowManagerService extends IWindowManager.Stub
     }
 /*
 wwxx
-addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
-
-£±¡¢´°¿ÚÌí¼ÓÈ¨ÏŞĞ£Ñé
-£²¡¢¼ì²éÌØÊâ´°¿Úattr.tokenºÍattr.typeµÄÒ»ÖÂĞÔ
-£³¡¢´´½¨´°¿Ú¶ÔÏó
-£´¡¢µ÷ÓÃadjustWindowParamsLw¶Ô´°¿Ú²ÎÊı½øĞĞµ÷Õû
-£µ¡¢´´½¨pipe,ÓÃÓÚÊäÈëÏûÏ¢µÄ´«µİ
-£¶¡¢µ÷ÓÃ´°¿ÚµÄattach£¬³õÊ¼»¯SurfaceÏà¹ØµÄ±äÁ¿,½«´°¿Úwin·Åµ½mWindowMapÖĞ
-7¡¢Èç¹ûtype == TYPE_APPLICATION_STARTING £¬ËµÃ÷Õâ¸öÊÇÆô¶¯´°¿Ú£¬°Ñwin¸³Öµ¸øtoken.appWindowToken.startingWindow 
-8¡¢Ìí¼Ó´°¿Úµ½WindowsÁĞ±í£¬È·¶¨´°¿ÚµÄÎ»ÖÃ
-9¡¢´°¿ÚÒÑ¾­Ìí¼ÓÁË£¬µ÷ÓÃassignLayersLockedµ÷ÕûÒ»ÏÂ²ãÖµ
+ï¼‘ã€çª—å£æ·»åŠ æƒé™æ ¡éªŒ
+ï¼’ã€æ£€æŸ¥ç‰¹æ®Šçª—å£attr.tokenå’Œattr.typeçš„ä¸€è‡´æ€§
+ï¼“ã€åˆ›å»ºçª—å£å¯¹è±¡
+ï¼”ã€è°ƒç”¨adjustWindowParamsLwå¯¹çª—å£å‚æ•°è¿›è¡Œè°ƒæ•´
+ï¼•ã€åˆ›å»ºpipe,ç”¨äºè¾“å…¥æ¶ˆæ¯çš„ä¼ é€’
+ï¼–ã€è°ƒç”¨çª—å£çš„attachï¼Œåˆå§‹åŒ–Surfaceç›¸å…³çš„å˜é‡,å°†çª—å£winæ”¾åˆ°mWindowMapä¸­
+7ã€å¦‚æœtype == TYPE_APPLICATION_STARTING ï¼Œè¯´æ˜è¿™ä¸ªæ˜¯å¯åŠ¨çª—å£ï¼ŒæŠŠwinèµ‹å€¼ç»™token.appWindowToken.startingWindow 
+8ã€æ·»åŠ çª—å£åˆ°Windowsåˆ—è¡¨ï¼Œç¡®å®šçª—å£çš„ä½ç½®
+9ã€çª—å£å·²ç»æ·»åŠ äº†ï¼Œè°ƒç”¨assignLayersLockedè°ƒæ•´ä¸€ä¸‹å±‚å€¼
 
 */
 
@@ -2166,12 +2208,10 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
             WindowManager.LayoutParams attrs, int viewVisibility, int displayId,
             Rect outContentInsets, InputChannel outInputChannel) {
 
-        //£±¡¢´°¿ÚÌí¼ÓÈ¨ÏŞĞ£Ñé   
+        //ï¼‘ã€çª—å£æ·»åŠ æƒé™æ ¡éªŒ 
         /*
-		´Ó²ÎÊıattrsÖĞ¿ÉÒÔÈ¡³ö´°¿ÚµÄtype,
-		¶ÔtypeÀàĞÍ³ıÁËToast´°¿Ú¡¢ÆÁ±£´°¿Ú¡¢ÊäÈë·¨´°¿Ú¡¢Ç½Ö½´°¿Ú¡¢ÓïÒô½»»¥´°¿ÚµÈÉÙÊı¼¸¸öÀàĞÍ´°¿Ú²»ĞèÒª½øĞĞÈ¨ÏŞÅĞ¶ÏÍâ£¬
-		ÆäÓàµÄ´°¿Ú¶¼ĞèÒª¼ì²éÊÇ·ñÓĞandroid.Manifest.permission.SYSTEM_ALERT_WINDOWÈ¨ÏŞ»òÕß android.Manifest.permission.INTERNAL_SYSTEM_WINDOWÈ¨ÏŞ	
-
+ä»å‚æ•°attrsä¸­å¯ä»¥å–å‡ºçª—å£çš„type,å¯¹typeç±»å‹é™¤äº†Toastçª—å£ã€å±ä¿çª—å£ã€è¾“å…¥æ³•çª—å£ã€å¢™çº¸çª—å£ã€è¯­éŸ³äº¤äº’çª—å£ç­‰å°‘æ•°å‡ ä¸ªç±»å‹çª—å£ä¸éœ€è¦è¿›è¡Œæƒé™åˆ¤æ–­å¤–ï¼Œ
+å…¶ä½™çš„çª—å£éƒ½éœ€è¦æ£€æŸ¥æ˜¯å¦æœ‰android.Manifest.permission.SYSTEM_ALERT_WINDOWæƒé™æˆ–è€… android.Manifest.permission.INTERNAL_SYSTEM_WINDOWæƒé™ã€‚
         */
         int[] appOp = new int[1];
         int res = mPolicy.checkAddPermission(attrs, appOp);
@@ -2185,45 +2225,45 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
         long origId;
         final int type = attrs.type;
         
-		//£²¡¢¼ì²éÌØÊâ´°¿Úattr.tokenºÍattr.typeµÄÒ»ÖÂĞÔ
+		//ï¼’ã€æ£€æŸ¥ç‰¹æ®Šçª—å£attr.tokenå’Œattr.typeçš„ä¸€è‡´æ€§
 
         synchronized(mWindowMap) {
-         	//ÆÁÄ»Ã»ÓĞ×¼±¸ºÃ£¬²»¸øÌí¼Ó´°¿Ú
+         	//å±å¹•æ²¡æœ‰å‡†å¤‡å¥½ï¼Œä¸ç»™æ·»åŠ çª—å£
             if (!mDisplayReady) {
                 throw new IllegalStateException("Display has not been initialialized");
             }
             
-			//»ñÈ¡µ±Ç°´°¿ÚĞèÒªÌí¼ÓÔÚÄÄÒ»¸öÆÁÄ»ÉÏ
+			//è·å–å½“å‰çª—å£éœ€è¦æ·»åŠ åœ¨å“ªä¸€ä¸ªå±å¹•ä¸Š
             final DisplayContent displayContent = getDisplayContentLocked(displayId);
             if (displayContent == null) {
                 Slog.w(TAG, "Attempted to add window to a display that does not exist: "
                         + displayId + ".  Aborting.");
                 return WindowManagerGlobal.ADD_INVALID_DISPLAY;
             }
-            //¸Ã´°¿ÚÓĞÃ»ÓĞÈ¨ÏŞÔÚÕâ¸öÆÁÄ»ÉÏÌí¼Ó
+             //è¯¥çª—å£æœ‰æ²¡æœ‰æƒé™åœ¨è¿™ä¸ªå±å¹•ä¸Šæ·»åŠ 
             if (!displayContent.hasAccess(session.mUid)) {
                 Slog.w(TAG, "Attempted to add window to a display for which the application "
                         + "does not have access: " + displayId + ".  Aborting.");
                 return WindowManagerGlobal.ADD_INVALID_DISPLAY;
             }
             
-			//¸Ã´°¿ÚÊÇ·ñÒÑ¾­Ìí¼Ó¹ı£¬WMS»á°ÑÌí¼ÓµÄ´°¿ÚToken±£´æÔÚmWindowMapÖĞ
+			//è¯¥çª—å£æ˜¯å¦å·²ç»æ·»åŠ è¿‡ï¼ŒWMSä¼šæŠŠæ·»åŠ çš„çª—å£Tokenä¿å­˜åœ¨mWindowMapä¸­
             if (mWindowMap.containsKey(client.asBinder())) {
                 Slog.w(TAG, "Window " + client + " is already added");
                 return WindowManagerGlobal.ADD_DUPLICATE_ADD;
             }
             
-			//Èç¹û´°¿ÚÀàĞÍÊÇ×Ó´°¿Ú
+			 //å¦‚æœçª—å£ç±»å‹æ˜¯å­çª—å£
             if (type >= FIRST_SUB_WINDOW && type <= LAST_SUB_WINDOW) {
-            	//°ÑÕâ¸ö×Ó´°¿ÚµÄ¸¸´°¿ÚÈ¡³öÀ´
+            	//ã€€//æŠŠè¿™ä¸ªå­çª—å£çš„çˆ¶çª—å£å–å‡ºæ¥  attrs.tokenæ˜¯IBinderç±»å‹çš„å¯¹è±¡ï¼ŒwindowForClientLockedæ–¹æ³•å†…éƒ¨ä¼šæ ¹æ®attrs.tokenä½œä¸ºkeyå€¼ä»mWindowMapä¸­å¾—åˆ°è¯¥å­çª—å£çš„çˆ¶çª—å£ã€‚æ¥ç€å¯¹çˆ¶çª—å£è¿›è¡Œåˆ¤æ–­ï¼Œå¦‚æœçˆ¶çª—å£ä¸ºnullæˆ–è€…typeçš„å–å€¼èŒƒå›´ä¸æ­£ç¡®åˆ™ä¼šè¿”å›é”™è¯¯çš„çŠ¶æ€
                 attachedWindow = windowForClientLocked(null, attrs.token, false);
-                //¸¸´°¿ÚÈç¹ûÎª¿Õ£¬¾Í»áreturn,ÒòÎª×Ó´°¿ÚĞèÒªÒÀÀµÒ»¸ö¸¸´°¿Ú´æÔÚ
+                //çˆ¶çª—å£å¦‚æœä¸ºç©ºï¼Œå°±ä¼šreturn,å› ä¸ºå­çª—å£éœ€è¦ä¾èµ–ä¸€ä¸ªçˆ¶çª—å£å­˜åœ¨
                 if (attachedWindow == null) {
                     Slog.w(TAG, "Attempted to add window with token that is not a window: "
                           + attrs.token + ".  Aborting.");
                     return WindowManagerGlobal.ADD_BAD_SUBWINDOW_TOKEN;
                 }
-                //¸¸´°¿Ú²»Îªnull,µ«ÊÇ¸¸´°¿ÚµÄÀàĞÍÒ²ÊÇÒ»¸ö×Ó´°¿Ú£¬Ò²»áreturn
+                //çˆ¶çª—å£ä¸ä¸ºnull,ä½†æ˜¯çˆ¶çª—å£çš„ç±»å‹ä¹Ÿæ˜¯ä¸€ä¸ªå­çª—å£ï¼Œä¹Ÿä¼šreturn
                 if (attachedWindow.mAttrs.type >= FIRST_SUB_WINDOW
                         && attachedWindow.mAttrs.type <= LAST_SUB_WINDOW) {
                     Slog.w(TAG, "Attempted to add window with token that is a sub-window: "
@@ -2231,36 +2271,36 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
                     return WindowManagerGlobal.ADD_BAD_SUBWINDOW_TOKEN;
                 }
             }
-			//Õâ¸ötype±íÊ¾¸Ã´°¿ÚÊÇÒªÌí¼Óµ½ĞéÄâÉè±¸ÉÏµÄ£¬µ«ÊÇ¸ÃÉè±¸È´²»ÊÇĞéÄâµÄ£¬Ò²Òª·µ»Ø
+			//è¿™ä¸ªtypeè¡¨ç¤ºè¯¥çª—å£æ˜¯è¦æ·»åŠ åˆ°è™šæ‹Ÿè®¾å¤‡ä¸Šçš„ï¼Œä½†æ˜¯è¯¥è®¾å¤‡å´ä¸æ˜¯è™šæ‹Ÿçš„ï¼Œä¹Ÿè¦è¿”å›
             if (type == TYPE_PRIVATE_PRESENTATION && !displayContent.isPrivate()) {
                 Slog.w(TAG, "Attempted to add private presentation window to a non-private display.  Aborting.");
                 return WindowManagerGlobal.ADD_PERMISSION_DENIED;
             }
 
             boolean addToken = false;
-             //´ÓmTokenMapÈ¡³öWindowToken£¬WindowTokenÊÇ´°¿Ú·Ö×éµÄ±êÖ¾£¬ÒòÎªaddWindow·½·¨µ÷ÓÃÖ®Ç°£¬
-             //AMSµÈ·şÎñ»áÌáÇ°ÏòWMS×¢²áÒ»¸ötokenµ½mTokenMap£¬ËùÒÔÕâÀïÒ»°ãÊÇ¿ÉÒÔÈ¡µ½µÄ£¬Ò²ÓĞĞ©Çé¿öÊÇÈ¡²»µ½µÄ£¬ÏÂÃæ·ÖÎö¡£
+              //ä»mTokenMapå–å‡ºWindowTokenï¼ŒWindowTokenæ˜¯çª—å£åˆ†ç»„çš„æ ‡å¿—ï¼Œå› ä¸ºaddWindowæ–¹æ³•è°ƒç”¨ä¹‹å‰ï¼Œ
+              //AMSç­‰æœåŠ¡ä¼šæå‰å‘WMSæ³¨å†Œä¸€ä¸ªtokenåˆ°mTokenMapï¼Œæ‰€ä»¥è¿™é‡Œä¸€èˆ¬æ˜¯å¯ä»¥å–åˆ°çš„ï¼Œä¹Ÿæœ‰äº›æƒ…å†µæ˜¯å–ä¸åˆ°çš„ï¼Œä¸‹é¢åˆ†æã€‚
             WindowToken token = mTokenMap.get(attrs.token);
             if (token == null) {
-            ////Èç¹ûÕâ¸ö´°¿ÚÊÇÓ¦ÓÃ³ÌĞò´°¿Ú£¬ÉÏÃæÈ¡³öµÄtokenÎªnull£¬ĞèÒª·µ»Ø
+             //å¦‚æœè¿™ä¸ªçª—å£æ˜¯åº”ç”¨ç¨‹åºçª—å£ï¼Œä¸Šé¢å–å‡ºçš„tokenä¸ºnullï¼Œéœ€è¦è¿”å›
                 if (type >= FIRST_APPLICATION_WINDOW && type <= LAST_APPLICATION_WINDOW) {
                     Slog.w(TAG, "Attempted to add application window with unknown token "
                           + attrs.token + ".  Aborting.");
                     return WindowManagerGlobal.ADD_BAD_APP_TOKEN;
                 }
-                 //Èç¹ûÕâ¸ö´°¿ÚÊÇÊä³ö·¨´°¿Ú£¬ÉÏÃæÈ¡³öµÄtokenÎªnull£¬ĞèÒª·µ»Ø
+                 //å¦‚æœè¿™ä¸ªçª—å£æ˜¯è¾“å‡ºæ³•çª—å£ï¼Œä¸Šé¢å–å‡ºçš„tokenä¸ºnullï¼Œéœ€è¦è¿”å›
                 if (type == TYPE_INPUT_METHOD) {
                     Slog.w(TAG, "Attempted to add input method window with unknown token "
                           + attrs.token + ".  Aborting.");
                     return WindowManagerGlobal.ADD_BAD_APP_TOKEN;
                 }
-                //Èç¹ûÕâ¸ö´°¿ÚÊÇÇ½Ö½´°¿Ú£¬ÉÏÃæÈ¡³öµÄtokenÎªnull£¬ĞèÒª·µ»Ø
+                 //å¦‚æœè¿™ä¸ªçª—å£æ˜¯å¢™çº¸çª—å£ï¼Œä¸Šé¢å–å‡ºçš„tokenä¸ºnullï¼Œéœ€è¦è¿”å›
                 if (type == TYPE_WALLPAPER) {
                     Slog.w(TAG, "Attempted to add wallpaper window with unknown token "
                           + attrs.token + ".  Aborting.");
                     return WindowManagerGlobal.ADD_BAD_APP_TOKEN;
                 }
-                //Èç¹ûÕâ¸ö´°¿ÚÊÇÆÁ±£´°¿Ú£¬ÉÏÃæÈ¡³öµÄtokenÎªnull£¬ĞèÒª·µ»Ø
+                 //å¦‚æœè¿™ä¸ªçª—å£æ˜¯å±ä¿çª—å£ï¼Œä¸Šé¢å–å‡ºçš„tokenä¸ºnullï¼Œéœ€è¦è¿”å›
                 if (type == TYPE_DREAM) {
                     Slog.w(TAG, "Attempted to add Dream window with unknown token "
                           + attrs.token + ".  Aborting.");
@@ -2268,11 +2308,10 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
                 }
                 token = new WindowToken(this, attrs.token, -1, false);
                 addToken = true;
-            } else if (type >= FIRST_APPLICATION_WINDOW && type <= LAST_APPLICATION_WINDOW) {//ÉÏÃæÈ¡³öµÄ´°¿Ú²»Îªnull,²¢ÇÒtypeÊÇÓ¦ÓÃÀàĞÍµÄ´°¿Ú
-				//È¡³öappWindowToken£¬appWindowTokenÊÇWindowTokenµÄ×ÓÀà£¬
-				//Ò»¸öappWindowTokenÒ»°ã±íÊ¾Õâ¸ö´°¿ÚÊÇÒ»¸öActivity´°¿Ú
+            } else if (type >= FIRST_APPLICATION_WINDOW && type <= LAST_APPLICATION_WINDOW) { //ä¸Šé¢å–å‡ºçš„çª—å£ä¸ä¸ºnull,å¹¶ä¸”typeæ˜¯åº”ç”¨ç±»å‹çš„çª—å£
+				//å–å‡ºappWindowTokenï¼ŒappWindowTokenæ˜¯WindowTokençš„å­ç±»ï¼Œä¸€ä¸ªappWindowTokenä¸€èˆ¬è¡¨ç¤ºè¿™ä¸ªçª—å£æ˜¯ä¸€ä¸ªActivityçª—å£
                 AppWindowToken atoken = token.appWindowToken;
-                ////È¡³öatokenÎªnullµÄ»°£¬²»ÄÜÌí¼Ó£¬´°¿ÚµÄÌí¼ÓÊÇ±ØĞëÓĞÒ»¸ötokenµÄ
+                //å–å‡ºatokenä¸ºnullçš„è¯ï¼Œä¸èƒ½æ·»åŠ ï¼Œçª—å£çš„æ·»åŠ æ˜¯å¿…é¡»æœ‰ä¸€ä¸ªtokençš„
                 if (atoken == null) {
                     Slog.w(TAG, "Attempted to add window with non-application token "
                           + token + ".  Aborting.");
@@ -2282,15 +2321,15 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
                           + token + ".  Aborting.");
                     return WindowManagerGlobal.ADD_APP_EXITING;
                 }
-                //Èç¹ûÕâ¸ö´°¿ÚµÄÀàĞÍÊÇÒ»¸öÆô¶¯´°¿ÚµÄ»°£¬atokenµÄfirstWindowDrawnµÈÓÚtrue,²»ĞèÒªÌí¼Ó
+                //å¦‚æœè¿™ä¸ªçª—å£çš„ç±»å‹æ˜¯ä¸€ä¸ªå¯åŠ¨çª—å£çš„è¯ï¼Œatokençš„firstWindowDrawnç­‰äºtrue,ä¸éœ€è¦æ·»åŠ 
                 if (type == TYPE_APPLICATION_STARTING && atoken.firstWindowDrawn) {
                     // No need for this guy!
                     if (localLOGV) Slog.v(
                             TAG, "**** NO NEED TO START: " + attrs.getTitle());
                     return WindowManagerGlobal.ADD_STARTING_NOT_NEEDED;
                 }
-            } else if (type == TYPE_INPUT_METHOD) { //´°¿ÚµÄÀàĞÍÊÇÊäÈë·¨´°¿Ú£¬
-				//µ«ÊÇËüµÄtoken²»ÊÇÊäÈë·¨ÀàĞÍµÄtoken,Ò²Òª·µ»Ø£¬²»¸øÌí¼Ó£¬ÏÂÃæ¼¸¸öÊÇÀàËÆµÄ
+            } else if (type == TYPE_INPUT_METHOD) { //çª—å£çš„ç±»å‹æ˜¯è¾“å…¥æ³•çª—å£ï¼Œ
+				//ä½†æ˜¯å®ƒçš„tokenä¸æ˜¯è¾“å…¥æ³•ç±»å‹çš„token,ä¹Ÿè¦è¿”å›ï¼Œä¸ç»™æ·»åŠ ï¼Œä¸‹é¢å‡ ä¸ªæ˜¯ç±»ä¼¼çš„
                 if (token.windowType != TYPE_INPUT_METHOD) {
                     Slog.w(TAG, "Attempted to add input method window with bad token "
                             + attrs.token + ".  Aborting.");
@@ -2309,7 +2348,7 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
                       return WindowManagerGlobal.ADD_BAD_APP_TOKEN;
                 }
             }
-			//£³¡¢´´½¨´°¿Ú¶ÔÏó,WindowStateÊÇWMSÖĞÕæÕıµÄ´°¿Ú¶ÔÏó
+			//ï¼“ã€åˆ›å»ºçª—å£å¯¹è±¡
             win = new WindowState(this, session, client, token,
                     attachedWindow, appOp[0], seq, attrs, viewVisibility, displayContent);
             if (win.mDeathRecipient == null) {
@@ -2319,8 +2358,7 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
                         + " that is dead, aborting.");
                 return WindowManagerGlobal.ADD_APP_EXITING;
             }
-			//4¡¢µ÷ÓÃPhoneWindowManagerµÄadjustWindowParamsLwµ÷Õû²¼¾Ö²ÎÊı.
-			//adjustWindowParamsLwÖ÷Òªµ÷Õû×´Ì¬À¸µÈ¼¸¸öÌØÊâ´°¿ÚµÄFLAG,±ÈÈç²»ÈÃËü»ñÈ¡ÓÃ»§½¹µã£¬²»ÈÃËüÏìÓ¦´¥ÃşÏûÏ¢µÈ¡£
+			//4ã€è°ƒç”¨PhoneWindowManagerçš„ adjustWindowParamsLw è°ƒæ•´å¸ƒå±€å‚æ•°
             mPolicy.adjustWindowParamsLw(win.mAttrs);
             win.setShowToOwnerOnlyLocked(mPolicy.checkShowToOwnerOnly(attrs));
 
@@ -2328,7 +2366,7 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
             if (res != WindowManagerGlobal.ADD_OKAY) {
                 return res;
             }
-			//£µ¡¢´´½¨pipe,ÓÃÓÚÊäÈëÏûÏ¢µÄ´«µİ ,´°¿ÚĞèÒª½ÓÊÕÊÂ¼ş£¬ËùÒÔĞèÒªÏòInputManagerService×¢²áInputChannel
+			//ï¼•ã€åˆ›å»ºpipe,ç”¨äºè¾“å…¥æ¶ˆæ¯çš„ä¼ é€’
             if (outInputChannel != null && (attrs.inputFeatures
                     & WindowManager.LayoutParams.INPUT_FEATURE_NO_INPUT_CHANNEL) == 0) {
                 String name = win.makeInputChannelName();
@@ -2344,7 +2382,7 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
             res = WindowManagerGlobal.ADD_OKAY;
 
             origId = Binder.clearCallingIdentity();
-			//6¡¢µ÷ÓÃ´°¿ÚµÄattach£¬³õÊ¼»¯SurfaceÏà¹ØµÄ±äÁ¿,½«´°¿Úwin·Åµ½mWindowMapÖĞ
+			//6ã€è°ƒç”¨çª—å£çš„attachï¼Œåˆå§‹åŒ–Surfaceç›¸å…³çš„å˜é‡,å°†çª—å£winæ”¾åˆ°mWindowMapä¸­
             if (addToken) {
                 mTokenMap.put(attrs.token, token);
             }
@@ -2356,7 +2394,7 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
                     win.setAppOpVisibilityLw(false);
                 }
             }
-			//7¡¢Èç¹ûtype == TYPE_APPLICATION_STARTING £¬ËµÃ÷Õâ¸öÊÇÆô¶¯´°¿Ú£¬°Ñwin¸³Öµ¸øtoken.appWindowToken.startingWindow
+			//7ã€å¦‚æœtype == TYPE_APPLICATION_STARTING ï¼Œè¯´æ˜è¿™ä¸ªæ˜¯å¯åŠ¨çª—å£ï¼ŒæŠŠwinèµ‹å€¼ç»™token.appWindowToken.startingWindow
             if (type == TYPE_APPLICATION_STARTING && token.appWindowToken != null) {
                 token.appWindowToken.startingWindow = win;
                 if (DEBUG_STARTING_WINDOW) Slog.v (TAG, "addWindow: " + token.appWindowToken
@@ -2366,14 +2404,11 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
             }
 
             boolean imMayMove = true;
-			//8¡¢Ìí¼Ó´°¿Úµ½WindowsÁĞ±í£¬È·¶¨´°¿ÚµÄÎ»ÖÃ
-
+			//8ã€æ·»åŠ çª—å£åˆ°Windowsåˆ—è¡¨ï¼Œç¡®å®šçª—å£çš„ä½ç½®
 			/*
-			È·¶¨´°¿ÚÎ»ÖÃ£¬·Ö³É¼¸ÖÖÇé¿ö£¬
-			Èç¹ûÊÇÊäÈë·¨ÀàĞÍµÄ´°¿Ú£¬µ÷ÓÃ addInputMethodWindowToListLocked ²åÈë´°¿ÚÁĞ±í£¬
-			Èç¹ûÊÇÊäÈë·¨¶Ô»°¿ò£¬µ÷ÓÃaddWindowToListInOrderLocked²åÈë´°¿ÚÁĞ±í£¬
-			Èç¹ûÊÇÆäËûÀàĞÍµÄ´°¿Ú£¬±ÈÈçÓ¦ÓÃÀàĞÍµÄ´°¿Ú£¬µ÷ÓÃaddWindowToListInOrderLocked²åÈë´°¿ÚÁĞ±í£¬
-			ÏÖÔÚÖØµã¹Ø×¢addWindowToListInOrderLocked·½·¨¡£
+                ç¡®å®šçª—å£ä½ç½®ï¼Œåˆ†æˆå‡ ç§æƒ…å†µï¼Œå¦‚æœæ˜¯è¾“å…¥æ³•ç±»å‹çš„çª—å£ï¼Œè°ƒç”¨ addInputMethodWindowToListLocked æ’å…¥çª—å£åˆ—è¡¨ï¼Œ
+                å¦‚æœæ˜¯è¾“å…¥æ³•å¯¹è¯æ¡†ï¼Œè°ƒç”¨ addWindowToListInOrderLocked æ’å…¥çª—å£åˆ—è¡¨ï¼Œ
+                å¦‚æœæ˜¯å…¶ä»–ç±»å‹çš„çª—å£ï¼Œæ¯”å¦‚åº”ç”¨ç±»å‹çš„çª—å£ï¼Œè°ƒç”¨ addWindowToListInOrderLocked æ’å…¥çª—å£åˆ—è¡¨ï¼Œç°åœ¨é‡ç‚¹å…³æ³¨ addWindowToListInOrderLocked æ–¹æ³•ã€‚
 
 			*/
             if (type == TYPE_INPUT_METHOD) {
@@ -2433,7 +2468,7 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
             if (imMayMove) {
                 moveInputMethodWindowsIfNeededLocked(false);
             }
-			//9¡¢´°¿ÚÒÑ¾­Ìí¼ÓÁË£¬µ÷ÓÃassignLayersLockedµ÷ÕûÒ»ÏÂ²ãÖµ
+			//9ã€çª—å£å·²ç»æ·»åŠ äº†ï¼Œè°ƒç”¨assignLayersLockedè°ƒæ•´ä¸€ä¸‹å±‚å€¼
             assignLayersLocked(displayContent.getWindowList());
             // Don't do layout here, the window must call
             // relayout to be displayed, so we'll do it there.
@@ -3413,9 +3448,19 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
         }
         return wtoken.appWindowToken;
     }
+ /*wwxx
+addWindowToken()è¿™ä¸ªå‡½æ•°å‘Šè¯‰æˆ‘ä»¬ï¼ŒWindowTokenå…¶å®æœ‰ä¸¤å±‚å«ä¹‰ï¼š
 
+å¯¹äºæ˜¾ç¤ºç»„ä»¶ï¼ˆå®¢æˆ·ç«¯ï¼‰è€Œè¨€çš„Tokenï¼Œæ˜¯ä»»æ„ä¸€ä¸ªBinderçš„å®ä¾‹ï¼Œå¯¹æ˜¾ç¤ºç»„ä»¶ï¼ˆå®¢æˆ·ç«¯ï¼‰æ¥è¯´ä»…ä»…æ˜¯ä¸€ä¸ªåˆ›å»ºçª—å£çš„ä»¤ç‰Œï¼Œæ²¡æœ‰å…¶ä»–çš„å«ä¹‰ã€‚
+å¯¹äºWMSè€Œè¨€çš„WindowTokenè¿™æ˜¯ä¸€ä¸ªWindowTokenç±»çš„å®ä¾‹ï¼Œä¿å­˜äº†å¯¹åº”äºå®¢æˆ·ç«¯ä¸€ä¾§çš„Tokenï¼ˆBinderå®ä¾‹ï¼‰ï¼Œå¹¶ä»¥è¿™ä¸ªTokenä¸ºé”®ï¼Œå­˜å‚¨äºmTokenMapä¸­ã€‚
+å®¢æˆ·ç«¯ä¸€ä¾§çš„Tokenæ˜¯å¦å·²è¢«å£°æ˜ï¼Œå–å†³äºå…¶å¯¹åº”çš„WindowTokenæ˜¯å¦ä½äºmTokenMapä¸­ã€‚
+æ³¨æ„ åœ¨ä¸€èˆ¬æƒ…å†µä¸‹ï¼Œç§°æ˜¾ç¤ºç»„ä»¶ï¼ˆå®¢æˆ·ç«¯ï¼‰ä¸€ä¾§Binderçš„å®ä¾‹ä¸ºTokenï¼Œè€Œç§°WMSä¸€ä¾§çš„WindowTokenå¯¹è±¡ä¸ºWindowTokenã€‚ä½†æ˜¯ä¸ºäº†å™è¿°æ–¹ä¾¿ï¼Œåœ¨æ²¡æœ‰æ­§ä¹‰çš„å‰æä¸‹ä¸ä¼šè¿‡åˆ†ä»”ç»†åœ°åŒºåˆ†è¿™ä¸¤ä¸ªæ¦‚å¿µã€‚
+
+æ¥ä¸‹æ¥ï¼Œçœ‹ä¸€ä¸‹å„ç§æ˜¾ç¤ºç»„ä»¶æ˜¯å¦‚ä½•å£°æ˜WindowTokençš„ã€‚
+ */   
     @Override
     public void addWindowToken(IBinder token, int type) {
+        //wwxx éœ€è¦å£°æ˜Tokençš„è°ƒç”¨è€…æ‹¥æœ‰MANAGE_APP_TOKENSçš„æƒé™
         if (!checkCallingPermission(android.Manifest.permission.MANAGE_APP_TOKENS,
                 "addWindowToken()")) {
             throw new SecurityException("Requires MANAGE_APP_TOKENS permission");
@@ -3427,6 +3472,9 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
                 Slog.w(TAG, "Attempted to add existing input method token: " + token);
                 return;
             }
+            // æ³¨æ„å…¶æ„é€ å‡½æ•°çš„å‚æ•°ä¸addWindow()ä¸­ä¸åŒï¼Œæœ€åä¸€ä¸ªå‚æ•°ä¸ºtrueï¼Œè¡¨æ˜è¿™ä¸ªToken
+           // æ˜¯æ˜¾å¼ç”³æ˜çš„
+            //éšå¼ä¸æ˜¾å¼çš„åŒºåˆ«åœ¨äºï¼Œå½“éšå¼åˆ›å»ºçš„WindowTokençš„æœ€åä¸€ä¸ªçª—å£è¢«ç§»é™¤åï¼Œæ­¤WindowTokenä¼šè¢«ä¸€å¹¶ä»mTokenMapä¸­ç§»é™¤ã€‚æ˜¾å¼åˆ›å»ºçš„WindowTokenåªèƒ½é€šè¿‡removeWindowToken()æ˜¾å¼åœ°ç§»é™¤ã€‚
             wtoken = new WindowToken(this, token, type, true);
             mTokenMap.put(token, wtoken);
             if (type == TYPE_WALLPAPER) {
@@ -8137,8 +8185,8 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
         }
     }
 
-/*wwxx µ±WindowState´´½¨Íê³É£¬²¢ÇÒ±»Ìí¼Óµ½WMSÎ¬³ÖµÄÊı×éÀïÃæºó£¬¾ÍĞèÒªµ÷ÓÃWindowLayersControllerµÄassignLayersLocked(windows)£¬½øĞĞZĞòµÄµ÷Õû¡£*/
-    private final void assignLayersLocked(WindowList windows) {//²ÎÊıwindowsÊÇ´°¿ÚÁĞ±í
+/*wwxx ÂµÂ±WindowStateÂ´Â´Â½Â¨ÃÃªÂ³Ã‰Â£Â¬Â²Â¢Ã‡Ã’Â±Â»ÃŒÃ­Â¼Ã“ÂµÂ½WMSÃÂ¬Â³Ã–ÂµÃ„ÃŠÃ½Ã—Ã©Ã€Ã¯ÃƒÃ¦ÂºÃ³Â£Â¬Â¾ÃÃÃ¨Ã’ÂªÂµÃ·Ã“ÃƒWindowLayersControllerÂµÃ„assignLayersLocked(windows)Â£Â¬Â½Ã¸ÃÃZÃÃ²ÂµÃ„ÂµÃ·Ã•Ã»Â¡Â£*/
+    private final void assignLayersLocked(WindowList windows) {//å‚æ•°windowsæ˜¯çª—å£åˆ—è¡¨
         int N = windows.size();
         int curBaseLayer = 0;
         int curLayer = 0;
@@ -8148,8 +8196,8 @@ addWindow·½·¨±È½Ï³¤£¬´ÖÂÔµÄ·Ö³ÉÏÂÃæ£¹µãÀ´½âÊÍ¡£
                 new RuntimeException("here").fillInStackTrace());
 
         boolean anyLayerChanged = false;
-/*±éÀú´°¿ÚÁĞ±í£¬ÉÏÃæÍ¨¹ıZĞòµÄ¼ÆËã¹«Ê½¼ÆËã³öÀ´µÄZĞòÖµ±£´æÔÚWindowStateµÄ±äÁ¿mBaseLayer
-       ÖĞ£¬Õâ¸öÑ­»·µÄÒâË¼ÊÇ£¬Óöµ½Í¬ÀàĞÍµÄ´°¿Ú£¬ºóÒ»¸ö´°¿ÚÔÚÇ°Ò»¸ö´°¿ÚµÄ»ù´¡ÉÏÆ«ÒÆ£µ¡£*/
+//éå†çª—å£åˆ—è¡¨ï¼Œä¸Šé¢é€šè¿‡Zåºçš„è®¡ç®—å…¬å¼è®¡ç®—å‡ºæ¥çš„Zåºå€¼ä¿å­˜åœ¨WindowStateçš„å˜é‡mBaseLayer
+       //ä¸­ï¼Œè¿™ä¸ªå¾ªç¯çš„æ„æ€æ˜¯ï¼Œé‡åˆ°åŒç±»å‹çš„çª—å£ï¼Œåä¸€ä¸ªçª—å£åœ¨å‰ä¸€ä¸ªçª—å£çš„åŸºç¡€ä¸Šåç§»ï¼•ã€‚
         for (i=0; i<N; i++) {
             final WindowState w = windows.get(i);
             final WindowStateAnimator winAnimator = w.mWinAnimator;
