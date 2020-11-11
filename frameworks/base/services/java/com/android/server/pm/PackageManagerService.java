@@ -1077,11 +1077,16 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         mContext = context;
-        mFactoryTest = factoryTest;
-        mOnlyCore = onlyCore;
+        mFactoryTest = factoryTest;//设置运行模式。工厂模式是一种测试模式
+        mOnlyCore = onlyCore;      //onlycore为true表示只处理系统的应用，通常为false
         mNoDexOpt = "eng".equals(SystemProperties.get("ro.build.type"));
-        mMetrics = new DisplayMetrics();
-        mSettings = new Settings(context);
+        mMetrics = new DisplayMetrics();//DisplayMetrics对象存储屏幕的显示信息新
+        mSettings = new Settings(context);//创建settings对象
+
+        /*
+            添加sharedUserSetting对象到settings 中，sharedUserId属性相同的包可以运行在同一个进程，或者相互读取资源。
+            这里添加了6种系统的uid: system、radio、log、nfc,bluetooth和shell
+        */
         mSettings.addSharedUserLPw("android.uid.system", Process.SYSTEM_UID,
                 ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_PRIVILEGED);
         mSettings.addSharedUserLPw("android.uid.phone", RADIO_UID,
@@ -1112,8 +1117,9 @@ public class PackageManagerService extends IPackageManager.Stub {
             mSeparateProcesses = null;
         }
 
-        mInstaller = installer;
+        mInstaller = installer;// installer是应用安装器
 
+        //用系统属性来设置DisplayMetrics对象
         WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);
         Display d = wm.getDefaultDisplay();
         d.getMetrics(mMetrics);
@@ -1188,6 +1194,8 @@ public class PackageManagerService extends IPackageManager.Stub {
             /**
              * Ensure all external libraries have had dexopt run on them.
              */
+            //对比当前系统的指令集，检查 mSharedLibraries 中记录的jar包是否需要转换成odex格式.
+            //mSharedLibraries变量中的动态库名是从permission/platfrom. xml文件中解析出来的
             if (mSharedLibraries.size() > 0) {
                 Iterator<SharedLibraryEntry> libs = mSharedLibraries.values().iterator();
                 while (libs.hasNext()) {
@@ -1196,7 +1204,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                         continue;
                     }
                     try {
-                        if (dalvik.system.DexFile.isDexOptNeeded(lib)) {
+                        if (dalvik.system.DexFile.isDexOptNeeded(lib)) {//如果是dalvik模式，调用Install的dex0pt转换成dex格式文件
                             alreadyDexOpted.add(lib);
                             mInstaller.dexopt(lib, Process.SYSTEM_UID, true);
                             didDexOpt = true;
@@ -1214,11 +1222,13 @@ public class PackageManagerService extends IPackageManager.Stub {
 
             // Gross hack for now: we know this file doesn't contain any
             // code, so don't dexopt it to avoid the resulting log spew.
+            //把framework-res.apk 加入到已优化列表
             alreadyDexOpted.add(frameworkDir.getPath() + "/framework-res.apk");
 
             // Gross hack for now: we know this file is only part of
             // the boot class path for art, so don't dexopt it to
             // avoid the resulting log spew.
+            //把core-libart.jar加入到已优化列表
             alreadyDexOpted.add(frameworkDir.getPath() + "/core-libart.jar");
 
             /**
@@ -1226,22 +1236,25 @@ public class PackageManagerService extends IPackageManager.Stub {
              * we currently need to do the dexopt on so that they can be
              * run from a non-root shell.
              */
+            //对framework目录下的文件执行dex到 odex的转换
             String[] frameworkFiles = frameworkDir.list();
             if (frameworkFiles != null) {
                 for (int i=0; i<frameworkFiles.length; i++) {
                     File libPath = new File(frameworkDir, frameworkFiles[i]);
                     String path = libPath.getPath();
                     // Skip the file if we alrady did it.
+                    //忽略已经在alreadyDex0pted列表中文件
                     if (alreadyDexOpted.contains(path)) {
                         continue;
                     }
                     // Skip the file if it is not a type we want to dexopt.
+                    // 忽略apk和jar以外的文件
                     if (!path.endsWith(".apk") && !path.endsWith(".jar")) {
                         continue;
                     }
                     try {
                         if (dalvik.system.DexFile.isDexOptNeeded(path)) {
-                            mInstaller.dexopt(path, Process.SYSTEM_UID, true);
+                            mInstaller.dexopt(path, Process.SYSTEM_UID, true);// 转换成dex格式文件
                             didDexOpt = true;
                         }
                     } catch (FileNotFoundException e) {
@@ -1277,6 +1290,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             mFrameworkInstallObserver = new AppDirObserver(
                 frameworkDir.getPath(), OBSERVER_EVENTS, true, false);
             mFrameworkInstallObserver.startWatching();
+            //扫描/system/ framework目录，收集目录中文件的信息
             scanDirLI(frameworkDir, PackageParser.PARSE_IS_SYSTEM
                     | PackageParser.PARSE_IS_SYSTEM_DIR
                     | PackageParser.PARSE_IS_PRIVILEGED,
@@ -1289,7 +1303,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             mPrivilegedInstallObserver.startWatching();
                 scanDirLI(privilegedAppDir, PackageParser.PARSE_IS_SYSTEM
                         | PackageParser.PARSE_IS_SYSTEM_DIR
-                        | PackageParser.PARSE_IS_PRIVILEGED, scanMode, 0);
+                        | PackageParser.PARSE_IS_PRIVILEGED, scanMode, 0);//扫描/system/priv-app目录，收集目录中文件的信息，这个目录是Android 4.4出现的
 
             // Collect ordinary system packages.
             File systemAppDir = new File(Environment.getRootDirectory(), "app");
@@ -1308,12 +1322,14 @@ public class PackageManagerService extends IPackageManager.Stub {
                     | PackageParser.PARSE_IS_SYSTEM_DIR, scanMode, 0);
 
             if (DEBUG_UPGRADE) Log.v(TAG, "Running installd update commands");
-            mInstaller.moveFiles();
+            mInstaller.moveFiles();//调用installd执行/system/etc/ updatecmds下命令脚本
 
             // Prune any system packages that no longer exist.
+            //这个列表记录的是可能有升级包的系统应用
             final List<String> possiblyDeletedUpdatedSystemApps = new ArrayList<String>();
             if (!mOnlyCore) {
                 Iterator<PackageSetting> psit = mSettings.mPackages.values().iterator();
+                // 循环处理mSettings .mPackages中的应用信息
                 while (psit.hasNext()) {
                     PackageSetting ps = psit.next();
 
@@ -1322,12 +1338,14 @@ public class PackageManagerService extends IPackageManager.Stub {
                      * disable system app.
                      */
                     if ((ps.pkgFlags & ApplicationInfo.FLAG_SYSTEM) == 0) {
-                        continue;
+                        continue; //忽略普通应用
                     }
 
                     /*
                      * If the package is scanned, it's not erased.
                      */
+                    //下面的mPackages是PackageMangerService 的成员变量
+                    //保存的是上面调用scanDirLI方法扫描目录后得到应用信息，不要和mSettings.mPackages混淆了
                     final PackageParser.Package scannedPkg = mPackages.get(ps.name);
                     if (scannedPkg != null) {
                         /*
@@ -1337,6 +1355,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                          * scanned package so the previously user-installed
                          * application can be scanned.
                          */
+                        //如果某个扫描过的系统应用是带升级包的系统应用，把它从 mPackages中移除"disable”列表是packages.xml中<update-package>标签表示的应用
                         if (mSettings.isDisabledSystemPackageLPr(ps.name)) {
                             Slog.i(TAG, "Expecting better updatd system app for " + ps.name
                                     + "; removing system app");

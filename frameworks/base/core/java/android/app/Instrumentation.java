@@ -1512,6 +1512,14 @@ public class Instrumentation {
      * 
      * {@hide}
      */
+
+    /** 
+   * 1.先看看比较重要的参数的意义：
+   * @param who:  当前的执行了startActivity的activity对象
+   * @param contextThread :当前activity 的主线程，即是ApplicationThread对象
+   * @param token：用于鉴定启动activity的对象
+   * @param target：需要被启动的activity 对象
+   **/ 
     public ActivityResult execStartActivity(
         Context who, IBinder contextThread, IBinder token, Fragment target,
         Intent intent, int requestCode, Bundle options) {
@@ -1534,6 +1542,14 @@ public class Instrumentation {
         try {
             intent.migrateExtraStreamToClipData();
             intent.prepareToLeaveProcess();
+            /**
+              * 2.看到这里，我们发现Instrumentation将启动activity的工作交给了AMS，这里就
+              * 涉及到了IPC调用了，IPC调用是同步的，而startActivity()是在主线程中调用的
+              * 那么这里会导致主线程阻塞吗？
+              * 答案是不会的，由于AMS内部执行startActivity(）是异步的，所以会在很短时间内
+              * 返回，然后最后再通过回调Activity的onActivityResult()，所以需要在这个方法
+              * 中传入一个Token，即是Activity的标识
+              **/
             int result = ActivityManagerNative.getDefault()
                 .startActivity(whoThread, who.getBasePackageName(), intent,
                         intent.resolveTypeIfNeeded(who.getContentResolver()),

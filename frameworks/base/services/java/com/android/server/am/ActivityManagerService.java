@@ -1781,11 +1781,11 @@ public final class ActivityManagerService extends ActivityManagerNative
     }
 
     public static final Context main(int factoryTest) {
-        AThread thr = new AThread();
+        AThread thr = new AThread();////创建一个Looper，实例化AMS
         thr.start();
 
         synchronized (thr) {
-            while (thr.mService == null) {
+            while (thr.mService == null) {{//等待AMS实例化完成
                 try {
                     thr.wait();
                 } catch (InterruptedException e) {
@@ -1794,8 +1794,8 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
 
         ActivityManagerService m = thr.mService;
-        mSelf = m;
-        ActivityThread at = ActivityThread.systemMain();
+        mSelf = m;//mSelf就是实例化的AMS
+        ActivityThread at = ActivityThread.systemMain();//实例化ActivityThread
         mSystemThread = at;
         Context context = at.getSystemContext();
         context.setTheme(android.R.style.Theme_Holo);
@@ -1803,18 +1803,18 @@ public final class ActivityManagerService extends ActivityManagerNative
         m.mFactoryTest = factoryTest;
         m.mIntentFirewall = new IntentFirewall(m.new IntentFirewallInterface());
 
-        m.mStackSupervisor = new ActivityStackSupervisor(m, context, thr.mLooper);
+        m.mStackSupervisor = new ActivityStackSupervisor(m, context, thr.mLooper);//activity堆栈管理类
 
         m.mBatteryStatsService.publish(context);
         m.mUsageStatsService.publish(context);
         m.mAppOpsService.publish(context);
 
-        synchronized (thr) {
+        synchronized (thr) {//mSelf初始化成功后，就可以让AThread中Looper loop起来
             thr.mReady = true;
             thr.notifyAll();
         }
 
-        m.startRunning(null, null, null, null);
+        m.startRunning(null, null, null, null);//调用startRuuning
 
         return context;
     }
@@ -2869,7 +2869,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
         Intent intent = getHomeIntent();
         ActivityInfo aInfo =
-            resolveActivityInfo(intent, STOCK_PM_FLAGS, userId);
+            resolveActivityInfo(intent, STOCK_PM_FLAGS, userId);/* wwxx 函数首先创建一个CATEGORY_HOME类型的Intent，然后通过Intent.resolveActivityInfo函数向PackageManagerService查询Category类型为HOME的Activity*/
         if (aInfo != null) {
             intent.setComponent(new ComponentName(
                     aInfo.applicationInfo.packageName, aInfo.name));
@@ -3111,6 +3111,9 @@ public final class ActivityManagerService extends ActivityManagerNative
             Intent intent, String resolvedType, IBinder resultTo,
             String resultWho, int requestCode, int startFlags,
             String profileFile, ParcelFileDescriptor profileFd, Bundle options, int userId) {
+        Log.d(TAG,Thread.currentThread().getStackTrace()[2].getFileName()+
+        "---->"+Thread.currentThread().getStackTrace()[2].getMethodName()+" wwxxams 4 "+" intent = "+intent.toString());
+
         enforceNotIsolatedCaller("startActivity");
         userId = handleIncomingUser(Binder.getCallingPid(), Binder.getCallingUid(), userId,
                 false, true, "startActivity", null);

@@ -14,6 +14,16 @@
 ** limitations under the License.
 */
 
+
+/*
+在安装 Android应用的过程中，执行 apk文件优化、创建、删除应用的数据文件等操作实际上是通过installd守护进程完成的。
+为什么不在 PackageManagerService中完成呢?原因很简单，PackageManagerService所在的进程SystemServer属于system用户组，没有root权限。
+而最后在文件系统中更改目录和复制删除文件都需要root权限才能完成，
+因此，Android用installd进程来完成最后一步的工作。
+
+但是,我们通过 adb shell查看installd会发现它的用户是install,也不是root.这是为什么呢？
+
+*/
 #include <sys/capability.h>
 #include <linux/prctl.h>
 

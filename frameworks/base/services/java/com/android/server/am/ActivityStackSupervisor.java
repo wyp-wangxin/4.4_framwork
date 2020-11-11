@@ -639,6 +639,7 @@ public final class ActivityStackSupervisor {
             ParcelFileDescriptor profileFd, WaitResult outResult, Configuration config,
             Bundle options, int userId) {
         // Refuse possible leaked file descriptors
+        // 传进来的参数 caller 得到调用者的进程信息
         if (intent != null && intent.hasFileDescriptors()) {
             throw new IllegalArgumentException("File descriptors passed in Intent");
         }
