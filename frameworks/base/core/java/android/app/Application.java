@@ -40,6 +40,23 @@ import android.os.Bundle;
  * given a {@link android.content.Context} which internally uses
  * {@link android.content.Context#getApplicationContext() Context.getApplicationContext()}
  * when first constructing the singleton.</p>
+ wwxx
+
+ Application类可以看作是应用本身的抽象，一个应用进程只能有一个 Application对象，
+ 在应用启动时由框架创建。Application本身并没有实现太多功能，它的主要作用是提供一些回调接口来通知应用进程状态的变化。
+ Application类中定义了几个抽象的接口，如下所示。
+
+onCreateO):在应用创建时调用。
+
+onTerminate():在应用销毁时调用。
+
+onConfigurationChanged(:在系统配置发生变化时调用。onLowMemory):在系统内存不足时调用。
+
+onTrimMemory(int level):在系统要求应用释放多余内存时调用。
+
+应用中可以定义Application 的派生类。派生类必须在 AndroidManifest.xml 的<application>标签中定义，这样系统才能在生成应用对象时使用派生类来代替Application类。
+<application>标签定义如下:
+
  */
 public class Application extends ContextWrapper implements ComponentCallbacks2 {
     private ArrayList<ComponentCallbacks> mComponentCallbacks =

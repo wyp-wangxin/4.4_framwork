@@ -131,6 +131,7 @@ final class RemoteServiceException extends AndroidRuntimeException {
  * manager requests.
  *
  * {@hide}
+ wwxx Android应用进程的核心是ActivityThread类
  */
 public final class ActivityThread {
     /** @hide */
@@ -155,10 +156,16 @@ public final class ActivityThread {
     private ContextImpl mSystemContext;
 
     static IPackageManager sPackageManager;
-
+//ApplicationThread类型的变量 mAppThread是一个 Binder 实体对象，ActivityManagerService通过它来调用应用的接口。
     final ApplicationThread mAppThread = new ApplicationThread();
     final Looper mLooper = Looper.myLooper();
     final H mH = new H();
+    /*wwxx
+    在图12.1中，mActivities、mServices 和mProviderMap3个变量的类型都是ArrayMap，
+    它们分别保存了应用中所有Activity对象、Servcie对象和 ContentProvider对象。
+
+    注意，这里没有数据结构来保存BroadcastReceiver对象，因为 BroadcastReceiver对象的生命周期很短暂，属于调用-次运行一次的类型,因此不需要保存其对象。
+    */
     final ArrayMap<IBinder, ActivityClientRecord> mActivities
             = new ArrayMap<IBinder, ActivityClientRecord>();
     // List of new activities (via ActivityRecord.nextIdle) that should
@@ -174,6 +181,10 @@ public final class ActivityThread {
     boolean mDensityCompatMode;
     Configuration mConfiguration;
     Configuration mCompatConfiguration;
+    /*wwxx
+    mInitialApplication变量是一个 Application对象。应用中 Application对象只有一个，如果某
+    个应用从Application类派生了自己的类, mInitialApplication对象将是应用中自定义类的实例对象。
+    */
     Application mInitialApplication;
     final ArrayList<Application> mAllApplications
             = new ArrayList<Application>();
@@ -198,6 +209,14 @@ public final class ActivityThread {
     // which means this lock gets held while the activity and window managers
     // holds their own lock.  Thus you MUST NEVER call back into the activity manager
     // or window manager or anything that depends on them while holding this lock.
+
+    /*wwxx
+        mPackages和mResourcesPackages两个变量的类型都是ArrayMap，保存的是应用apk包的信息。
+        这里为什么要用两个变量，还有数组来保存应用的信息呢?在后面将介绍应用标签<application>的属性，其中属性“hasCode”表示apk文件中是否包含代码。
+        不包含代码，只包含资源的apk文件保存在变量mResourcesPackages中，包含代码的apk文件保存在变量 mPackages中。
+        此外,通过属性process设置相同的应用名称后,两个有着相同shareUserId和签名的应用可以合并在一个进程中运行，
+        这意味着一个应用中会保存多个apk 的信息，因此，这两个变量都是数组类型就可以理解了。
+    */   
     final ArrayMap<String, WeakReference<LoadedApk>> mPackages
             = new ArrayMap<String, WeakReference<LoadedApk>>();
     final ArrayMap<String, WeakReference<LoadedApk>> mResourcePackages
@@ -206,7 +225,7 @@ public final class ActivityThread {
             = new ArrayList<ActivityClientRecord>();
     Configuration mPendingConfiguration = null;
 
-    private final ResourcesManager mResourcesManager;
+    private final ResourcesManager mResourcesManager;//wwxx 变量mResoureManager管理应用的资源(resource)。
 
     private static final class ProviderKey {
         final String authority;
@@ -252,18 +271,26 @@ public final class ActivityThread {
 
     Bundle mCoreSettings = null;
 
+//ActivityThread中的成员变量mActivites中保存了所有 ActivityClientRecord对象，ActivityClientRecord类中重要的成员变量如下:
     static final class ActivityClientRecord {
-        IBinder token;
+/*wwxx
+    token的类型是IBinder，在 ActivityManagerServcie 中会为每个应用程序中的Activity对象建立一个对应的ActivityRecord对象，
+    ActivityRecord 会创建一个token对象来作为Activity的标识。
+    这个token是个 Binder对象，但是，它不是为提供 Binder 服务而创建的，这里只是利用Binder对象的系统全局惟一性来作为标识符。
+
+    每一个Activity都包含了一个Window对象，Window对象关联着应用框架的一大块内容。
+*/
+        IBinder token;     //Activity对象的全局惟—标识
         int ident;
-        Intent intent;
+        Intent intent;     //启动Activity的Intent
         Bundle state;
-        Activity activity;
-        Window window;
-        Activity parent;
+        Activity activity;  // Activity对象
+        Window window;     // Activity的窗口对象 
+        Activity parent;   
         String embeddedID;
         Activity.NonConfigurationInstances lastNonConfigurationInstances;
-        boolean paused;
-        boolean stopped;
+        boolean paused;    //是否在暂停状态的标志
+        boolean stopped;    //是否在停止状态的标志
         boolean hideForNow;
         Configuration newConfig;
         Configuration createdConfig;
@@ -273,9 +300,9 @@ public final class ActivityThread {
         ParcelFileDescriptor profileFd;
         boolean autoStopProfiler;
 
-        ActivityInfo activityInfo;
+        ActivityInfo activityInfo;    // Acitivty的信息
         CompatibilityInfo compatInfo;
-        LoadedApk packageInfo;
+        LoadedApk packageInfo;     //包的信息
 
         List<ResultInfo> pendingResults;
         List<Intent> pendingIntents;
@@ -532,7 +559,25 @@ public final class ActivityThread {
     }
 
     private native void dumpGraphicsInfo(FileDescriptor fd);
+/*wwxx
+ApplicationThread是 ActivityThread 的一个嵌入类，它和ActivityThread类一样，虽然名字!都包含了thread，但是它们并不是线程类Thread 的派生类。
+ApplicationThread是一个 Binder服务类，Android的 ActivityManagerService操作应用就是通过ApplicationThread提供的接口完成的。
 
+ApplicationThread类从 ApplicationThreadNative类派生，ApplicationThreadNative类中封装了Binder的实现。
+ApplicationThread虽然定义了大量的接口，但是接口的实现模式都是把Binder调用转换成消息来排队处理，这样能防止应用处理消息的时间过长而影响整个系统的运行。
+
+下面看一个例子，接口 scheduleSleeping()的代码如下:
+        public final void scheduleSleeping(IBinder token, boolean sleeping) {
+            sendMessage(H.SLEEPING, token, sleeping ? 1 : 0);
+        }
+
+scheduleSleeping()方法只是发送了消息SLEEPING，所有消息都在Handler对象 mH的handleMessage()方法中集中处理，其中处理SLEEPING消息的代码如下:
+        .......
+
+消息的处理通常是调用ActivityThread类的某个方法完成。
+通过这种模式，从 Binder 来的调用就转换成异步方式来执行了。理解了这个过程之后，再分析ApplicationThread类的接口时，可以省略中间的消息传递过程，直接查看ActivityThread中对应的方法。
+通常ApplicationThread中的接口方法都是以“schedule”开头，而ActivityThread中对应的处理方法则以“handle”开头,很容易分辨。
+*/
     private class ApplicationThread extends ApplicationThreadNative {
         private static final String ONE_COUNT_COLUMN = "%21s %8d";
         private static final String TWO_COUNT_COLUMNS = "%21s %8d %21s %8d";
@@ -2824,13 +2869,13 @@ public final class ActivityThread {
                 } catch (RemoteException e) {
                 }
             }
-             //wwxx Activity��Windowû�б����ӹ�����Activityû��finish����Ҫ���óɿɼ�
+             //wwxx ActivityµÄWindowÃ»ÓÐ±»Ìí¼Ó¹ý²¢ÇÒActivityÃ»ÓÐfinishºÍÐèÒªÉèÖÃ³É¿É¼û
             if (r.window == null && !a.mFinished && willBeVisible) {
-            	//��Actiivty��Ա����window��ֵ
+            	//¶ÔActiivty³ÉÔ±±äÁ¿window¸³Öµ
                 r.window = r.activity.getWindow();
-                //��ȡWindow��DecorView
+                //»ñÈ¡WindowµÄDecorView
                 View decor = r.window.getDecorView();
-                //��DecorView���óɿɼ�
+                //½«DecorViewÉèÖÃ³É¿É¼û
                 decor.setVisibility(View.INVISIBLE);
                 ViewManager wm = a.getWindowManager();
                 WindowManager.LayoutParams l = r.window.getAttributes();
@@ -2839,7 +2884,7 @@ public final class ActivityThread {
                 l.softInputMode |= forwardBit;
                 if (a.mVisibleFromClient) {
                     a.mWindowAdded = true;
-                    //����ViewManager�ķ�������decor
+                    //µ÷ÓÃViewManagerµÄ·½·¨Ìí¼Ódecor
                     wm.addView(decor, l);
                 }
 
@@ -4852,7 +4897,12 @@ public final class ActivityThread {
 
         return retHolder;
     }
+/*
+attach()方法中当参数system的值为false主要做了两件事情，一是调用 setApplicationObject()方法把对象 mAppThread 放到了RuntimeInit类中的静态变量 mApplicationObject 中。
+mAppThread的类型是 ApplicationThread,它是 ActivityThread 的成员变量。
 
+第二件事是调用ActivityManagerService的 attachApplication()方法，同时将 mAppThread 作为参数传递到了AMS 中，这样 AMS就能通过它来调用应用的接口了。
+*/
     private void attach(boolean system) {
         sCurrentActivityThread = this;
         mSystemThread = system;
@@ -4978,33 +5028,37 @@ public final class ActivityThread {
         // StrictMode) on debug builds, but using DropBox, not logs.
         CloseGuard.setEnabled(false);
 
-        Environment.initForCurrentUser();
+        Environment.initForCurrentUser();//初始化应用中需要使用的系统路径
 
         // Set the reporter for event logging in libcore
         EventLogger.setReporter(new EventLoggingReporter());
 
-        Security.addProvider(new AndroidKeyStoreProvider());
+        Security.addProvider(new AndroidKeyStoreProvider());//增加一个保存key的provider
 
-        Process.setArgV0("<pre-initialized>");
+        Process.setArgV0("<pre-initialized>");//设置进程名称
 
         Looper.prepareMainLooper();
 
-        ActivityThread thread = new ActivityThread();
-        thread.attach(false);
+        ActivityThread thread = new ActivityThread();//创建ActivityThread对象
+        thread.attach(false);//使用参数false 调用attach
 
         if (sMainThreadHandler == null) {
-            sMainThreadHandler = thread.getHandler();
+            sMainThreadHandler = thread.getHandler();//保存主线程的handler
         }
 
-        AsyncTask.init();
+        AsyncTask.init();//初始化AsynTask类
 
         if (false) {
             Looper.myLooper().setMessageLogging(new
                     LogPrinter(Log.DEBUG, "ActivityThread"));
         }
 
-        Looper.loop();
-
+        Looper.loop();//进入消息循环
+/*
+main()方法的逻辑比较简单，主要是初始化环境，然后让线程进入消息循环。
+在进行消息循环前，main()方法创建了ActivityThread对象，并使用参数 false调用了它的attach()方法。
+我们看看attch(方法中参数为false时的分支代码.---> 自己看。
+*/
         throw new RuntimeException("Main thread loop unexpectedly exited");
     }
 }

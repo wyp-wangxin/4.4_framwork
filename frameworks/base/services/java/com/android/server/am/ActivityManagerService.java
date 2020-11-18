@@ -1729,27 +1729,38 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
         }
     };
-
+/*wwxx
+setSystemProcess()方法主要工作是向ServiceManager注册了一些服务。
+但是，要注意看最后一段代码,它创建了代表SystemServer 的 ProcessRecod对象,并把它加入到AMS 的进程(process)管理体系中。
+从某种角度看，SystemServer 也可以当作framework-res.apk 的应用进程，这里把它加入到AMS 的进程(process)管理体系，
+对AMS而言，它对系统进程的管理就没有遗漏了。
+*/
     public static void setSystemProcess() {
         try {
             ActivityManagerService m = mSelf;
-
+            //wwxx 将ActivityManagerService加入到 ServiceManager
             ServiceManager.addService(Context.ACTIVITY_SERVICE, m, true);
+            //wwxx ProcessStats 是dump进程信息的服务
             ServiceManager.addService(ProcessStats.SERVICE_NAME, m.mProcessStats);
+            //MemBinder是 dump系统中每个进程的内存使用状况的服务
             ServiceManager.addService("meminfo", new MemBinder(m));
+            // GraphicsBinder是dump每个进程使用图形加速卡状态的服务
             ServiceManager.addService("gfxinfo", new GraphicsBinder(m));
+            // DbBinder是dump系统中每个进程的db状况的服务
             ServiceManager.addService("dbinfo", new DbBinder(m));
             if (MONITOR_CPU_USAGE) {
                 ServiceManager.addService("cpuinfo", new CpuBinder(m));
             }
+            // PermissionController是检查Binder调用权限的服务
             ServiceManager.addService("permission", new PermissionController(m));
-
+            //得到framework-res.apk的ApplicationInfo
             ApplicationInfo info =
                 mSelf.mContext.getPackageManager().getApplicationInfo(
                             "android", STOCK_PM_FLAGS);
             mSystemThread.installSystemApplicationInfo(info);
 
             synchronized (mSelf) {
+                ////把 SystemServer进程本身加入到process的管理中
                 ProcessRecord app = mSelf.newProcessRecordLocked(info,
                         info.processName, false);
                 app.persistent = true;
@@ -1954,21 +1965,25 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
         }
     }
-
+/*wwxx
+AMS构造方法的主要作用是创建出了4大组件 Activity.Service,Broadcast和 ContentProvider的管理对象以及一些内部对象，逻辑比较简单，。
+*/
     private ActivityManagerService() {
         Slog.i(TAG, "Memory class: " + ActivityManager.staticGetMemoryClass());
-
+        //wwxx 创建管理广播的数据结构
         mFgBroadcastQueue = new BroadcastQueue(this, "foreground", BROADCAST_FG_TIMEOUT, false);
         mBgBroadcastQueue = new BroadcastQueue(this, "background", BROADCAST_BG_TIMEOUT, true);
         mBroadcastQueues[0] = mFgBroadcastQueue;
         mBroadcastQueues[1] = mBgBroadcastQueue;
 
-        mServices = new ActiveServices(this);
-        mProviderMap = new ProviderMap(this);
+        mServices = new ActiveServices(this);//wwxx 创建管理组件service的对象
+        mProviderMap = new ProviderMap(this);//wwxx 创建管理组件provider的对象 
 
+        //wwxx 得到系统的data和system目录
         File dataDir = Environment.getDataDirectory();
         File systemDir = new File(dataDir, "system");
         systemDir.mkdirs();
+        //wwxx 创建BatteryStatsService服务
         mBatteryStatsService = new BatteryStatsService(new File(
                 systemDir, "batterystats.bin").toString());
         mBatteryStatsService.getActiveStatistics().readLocked();
@@ -1976,10 +1991,11 @@ public final class ActivityManagerService extends ActivityManagerNative
         mOnBattery = DEBUG_POWER ? true
                 : mBatteryStatsService.getActiveStatistics().getIsOnBattery();
         mBatteryStatsService.getActiveStatistics().setCallback(this);
-
+		//wwxx //创建进程统计服务，信息保存在目录/data/system/procstats 创建ProcessStatsService服务
         mProcessStats = new ProcessStatsService(this, new File(systemDir, "procstats"));
 
         mUsageStatsService = new UsageStatsService(new File(systemDir, "usagestats").toString());
+        //wwxx 创建AppOpsservice服务
         mAppOpsService = new AppOpsService(new File(systemDir, "appops.xml"));
 
         mGrantFile = new AtomicFile(new File(systemDir, "urigrants.xml"));
@@ -2002,9 +2018,9 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         mCompatModePackages = new CompatModePackages(this, systemDir);
 
-        // Add ourself to the Watchdog monitors.
+        // Add ourself to the Watchdog monitors.//wwxx 把服务加到 Watchdog的监控中
         Watchdog.getInstance().addMonitor(this);
-
+        //wwxx 创建统计CPU使用情况的线程
         mProcessCpuThread = new Thread("CpuTracker") {
             @Override
             public void run() {
@@ -2283,35 +2299,35 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         if (app.activities.size() > 0) {
             // Don't want to touch dependent processes that are hosting activities.
-            return index;
+            return index;////如果有Activity，不用调整位置
         }
 
         int lrui = mLruProcesses.lastIndexOf(app);
         if (lrui < 0) {
             Slog.wtf(TAG, "Adding dependent process " + app + " not on LRU list: "
                     + what + " " + obj + " from " + srcApp);
-            return index;
+            return index;//如果进程不在mLruProcesses 中,退出
         }
 
         if (lrui >= index) {
             // Don't want to cause this to move dependent processes *back* in the
             // list as if they were less frequently used.
-            return index;
+            return index;//如果进程目前的位置高于要调整的位置,退出
         }
 
         if (lrui >= mLruProcessActivityStart) {
             // Don't want to touch dependent processes that are hosting activities.
-            return index;
+            return index;//如果进程目前的位置比有Acitivty的进程还高,退出
         }
 
         mLruProcesses.remove(lrui);
         if (index > 0) {
-            index--;
+            index--;//把进程调整到参数index-1的位置
         }
         if (DEBUG_LRU) Slog.d(TAG, "Moving dep from " + lrui + " to " + index
                 + " in LRU list: " + app);
         mLruProcesses.add(index, app);
-        return index;
+        return index;// 返回进程目前的位置
     }
 
     final void removeLruProcessLocked(ProcessRecord app) {
@@ -2326,9 +2342,20 @@ public final class ActivityManagerService extends ActivityManagerNative
             mLruProcesses.remove(lrui);
         }
     }
+/*wwxx
+    AMS的代码中经常调用updateLruProcessLocked()方法来调整某个进程在mLruProcesses列表中的位置，
+    mLruProcesses是最近使用进程列表（LRU是List Of Recent Using的缩写)。
+    每当进程中的Activity或Service发生变化时，意味着进程发生了活动，因此，调用这个方法将该进程调整到尽可能高的位置，同时还要更新关联进程的位置。
+    在 mLruProcesses 列表中，最近活动过的进程总是位于最高位置，同时拥有Activity的进程的位置总是高于只有Service的进程的位置。
 
+    AMS 的成员变量 mLruProcessActivityStart 和 mLruProcessServiceStart 分别指向列表中位置最高的、带有Activity进程和没有Activity的进程。
+
+*/
     final void updateLruProcessLocked(ProcessRecord app, boolean activityChange,
             ProcessRecord client) {
+        //app.activities.size()>0 表示本进程中有活动的Activity。
+        //app.hasClientActivities的值为true，表示某个绑定了本进程中的Service的客户进程有活动的Actvity
+        //treatLikeActivity 表示Service启动时带有标记 BIND_TREAT_LIKE_ACTIVITY
         final boolean hasActivity = app.activities.size() > 0 || app.hasClientActivities;
         final boolean hasService = false; // not impl yet. app.services.size() > 0;
         if (!activityChange && hasActivity) {
@@ -2336,22 +2363,27 @@ public final class ActivityManagerService extends ActivityManagerNative
             // adjustments move it.  It should be kept in the front of the list with other
             // processes that have activities, and we don't want those to change their
             // order except due to activity operations.
+            //如果 ProcessRecord 对象中已经有了 Activity
+            //再调用本方法，除非是Activity发生变化了才需要
             return;
         }
 
-        mLruSeq++;
+        mLruSeq++;//方法每调用一次，这个变量加一
         final long now = SystemClock.uptimeMillis();
-        app.lastActivityTime = now;
+        app.lastActivityTime = now;//更新lastActivityTime中的时间
 
         // First a quick reject: if the app is already at the position we will
         // put it, then there is nothing to do.
         if (hasActivity) {
+            //如果进程已经初始化了，而且在 mLruProcesses 列表中的位置也是最后一项
+            //这样本方法没有什么可做的,退出
             final int N = mLruProcesses.size();
             if (N > 0 && mLruProcesses.get(N-1) == app) {
                 if (DEBUG_LRU) Slog.d(TAG, "Not moving, already top activity: " + app);
                 return;
             }
         } else {
+            //如果进程中没有Activity，而且已经位于mLruProcesses列表中合适的位置，退出
             if (mLruProcessServiceStart > 0
                     && mLruProcesses.get(mLruProcessServiceStart-1) == app) {
                 if (DEBUG_LRU) Slog.d(TAG, "Not moving, already top other: " + app);
@@ -2361,7 +2393,7 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         int lrui = mLruProcesses.lastIndexOf(app);
 
-        if (app.persistent && lrui >= 0) {
+        if (app.persistent && lrui >= 0) {////带有persistent标志的进程不需要调整,退出
             // We don't care about the position of persistent processes, as long as
             // they are in the list.
             if (DEBUG_LRU) Slog.d(TAG, "Not moving, persistent: " + app);
@@ -2403,6 +2435,8 @@ public final class ActivityManagerService extends ActivityManagerNative
         */
 
         if (lrui >= 0) {
+            //如果进程已经存在，先从mLruProcesses列表中移除，同时调整mLruProcessActivityStart
+            //和mLruProcessServicestart指向的位置
             if (lrui < mLruProcessActivityStart) {
                 mLruProcessActivityStart--;
             }
@@ -2438,10 +2472,12 @@ public final class ActivityManagerService extends ActivityManagerNative
                 // activities...  move it up, but one below the top (the top
                 // should always have a real activity).
                 if (DEBUG_LRU) Slog.d(TAG, "Adding to second-top of LRU activity list: " + app);
+                ///进程中没有Activity，但是它的Service客户进程中有Activity
                 mLruProcesses.add(N-1, app);
                 // To keep it from spamming the LRU list (by making a bunch of clients),
                 // we will push down any other entries owned by the app.
                 final int uid = app.info.uid;
+                ////如果从倒数第三项开始连续有进程的uid和插入的进程的uid相同，把它们的位置向上移动
                 for (int i=N-2; i>mLruProcessActivityStart; i--) {
                     ProcessRecord subProc = mLruProcesses.get(i);
                     if (subProc.info.uid == uid) {
@@ -2464,9 +2500,9 @@ public final class ActivityManagerService extends ActivityManagerNative
             } else {
                 // Process has activities, put it at the very tipsy-top.
                 if (DEBUG_LRU) Slog.d(TAG, "Adding to top of LRU activity list: " + app);
-                mLruProcesses.add(app);
+                mLruProcesses.add(app);// 进程有Activity，加入到最后一项
             }
-            nextIndex = mLruProcessServiceStart;
+            nextIndex = mLruProcessServiceStart;////关联进程将要插入的位置
         } else if (hasService) {
             // Process has services, put it at the top of the service list.
             if (DEBUG_LRU) Slog.d(TAG, "Adding to top of LRU service list: " + app);
@@ -2475,8 +2511,9 @@ public final class ActivityManagerService extends ActivityManagerNative
             mLruProcessActivityStart++;
         } else  {
             // Process not otherwise of interest, it goes to the top of the non-service area.
+            //如果进程中只有Service，将进程插入到mLruProcessServicestart指向的位置
             int index = mLruProcessServiceStart;
-            if (client != null) {
+            if (client != null) {////参数client的值的多数情况都是null
                 // If there is a client, don't allow the process to be moved up higher
                 // in the list than that client.
                 int clientIndex = mLruProcesses.lastIndexOf(client);
@@ -2493,13 +2530,14 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
             if (DEBUG_LRU) Slog.d(TAG, "Adding at " + index + " of LRU list: " + app);
             mLruProcesses.add(index, app);
-            nextIndex = index-1;
+            nextIndex = index-1;////关联进程将要插入的位置
             mLruProcessActivityStart++;
             mLruProcessServiceStart++;
         }
 
         // If the app is currently using a content provider or service,
         // bump those processes as well.
+        //将和本进程的Service关联的客户进程的位置调整到本进程之后
         for (int j=app.connections.size()-1; j>=0; j--) {
             ConnectionRecord cr = app.connections.valueAt(j);
             if (cr.binding != null && !cr.serviceDead && cr.binding.service != null
@@ -2510,6 +2548,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                         "service connection", cr, app);
             }
         }
+        //将和本进程contentProvider关联的客户进程的位置调整到本进程之后
         for (int j=app.conProviders.size()-1; j>=0; j--) {
             ContentProviderRecord cpr = app.conProviders.get(j).provider;
             if (cpr.proc != null && cpr.proc.lruSeq != mLruSeq && !cpr.proc.persistent) {
@@ -2517,7 +2556,22 @@ public final class ActivityManagerService extends ActivityManagerNative
                         "provider reference", cpr, app);
             }
         }
-    }
+    }/*wwxx
+
+    updateLruProcessLocked()方法中调整进程很重要的一个依据是进程中有没有活动的Activity除了进程本身存在Activity对象外，
+    如果和进程中运行的Service相关联的客户进程中有Activity也算本进程拥有 Activity。
+    只一点很好理解，这里调整位置的目的是为了将来杀死进程释放内存做准备，如果一个进程的关联进程有Activity对象存在，
+    那么它的重要性也和真正拥有Activity对象的进程相当，如果杀死它，将导致另一个进程出现严重错误。
+    Activity用来显示UI，关系着用户体验，因此，Android尽量不关闭运行Activity 组件的进程。
+
+    如果一个进程“拥有”Activity，通常会把它插到队列的最高端的位置，否则，只会把它放到所有没有Activity 的进程的前面，这个位置正是变量mLruProcessServiceStart所指向的。
+
+    调整某个进程的位置之后，还要调整和该进程的关联进程的位置。进程的关联进程有两种类型:
+    一种是绑定了本进程服务的进程，
+    另一种是连接了本进程的ContentProvider的进程。
+    如果这些进程本身有Activity是不会调整的,需要调整的是那些没有Activity的进程,在updateLruProcessInternalLocked()方法中会执行这种调整，
+    但是，能调整到的最高的位置也就是mLruProcessServiceStart指向的位置。
+    */
 
     final ProcessRecord getProcessRecordLocked(String processName, int uid, boolean keepIfLarge) {
         if (uid == Process.SYSTEM_UID) {
@@ -2677,13 +2731,13 @@ public final class ActivityManagerService extends ActivityManagerNative
     boolean isAllowedWhileBooting(ApplicationInfo ai) {
         return (ai.flags&ApplicationInfo.FLAG_PERSISTENT) != 0;
     }
-
+//wwxx startProcessLocked 是启动进程的方法
     private final void startProcessLocked(ProcessRecord app,
             String hostingType, String hostingNameStr) {
         if (app.pid > 0 && app.pid != MY_PID) {
             synchronized (mPidsSelfLocked) {
-                mPidsSelfLocked.remove(app.pid);
-                mHandler.removeMessages(PROC_START_TIMEOUT_MSG, app);
+                mPidsSelfLocked.remove(app.pid);// 把进程id先移除,防止重复
+                mHandler.removeMessages(PROC_START_TIMEOUT_MSG, app);////把消息 PROC_START_TIMEOUT_MSG 也清除，下面会利用这条消息来计算启动时间
             }
             app.setPid(0);
         }
@@ -2704,7 +2758,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 try {
                     final PackageManager pm = mContext.getPackageManager();
                     permGids = pm.getPackageGids(app.info.packageName);
-
+                    // 检查进程权限,确定它是否能看见所有用户的存储空间
                     if (Environment.isExternalStorageEmulated()) {
                         if (pm.checkPermission(
                                 android.Manifest.permission.ACCESS_ALL_EXTERNAL_STORAGE,
@@ -2766,6 +2820,7 @@ public final class ActivityManagerService extends ActivityManagerNative
 
             // Start the process.  It will either succeed and return a result containing
             // the PID of the new process, or else throw a RuntimeException.
+            /// 启动应用
             Process.ProcessStartResult startResult = Process.start("android.app.ActivityThread",
                     app.processName, uid, uid, gids, debugFlags, mountExternal,
                     app.info.targetSdkVersion, app.info.seinfo, null);
@@ -2814,6 +2869,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             app.usingWrapper = startResult.usingWrapper;
             app.removed = false;
             synchronized (mPidsSelfLocked) {
+                ////发送一个定时消息,时间到应用还没有启动完成就会出现ANR
                 this.mPidsSelfLocked.put(startResult.pid, app);
                 Message msg = mHandler.obtainMessage(PROC_START_TIMEOUT_MSG);
                 msg.obj = app;
@@ -2825,7 +2881,13 @@ public final class ActivityManagerService extends ActivityManagerNative
             app.setPid(0);
             Slog.e(TAG, "Failure starting process " + app.processName, e);
         }
-    }
+    }/*wwxx
+            startProcessLocked()方法的流程是:准备好启动应用的参数后，调用Process类的 start()方法来启动进程。
+            启动进程后AMS 给自己发了一个 PROC_START_TIMEOUT_MSG消息，这个消息是用来防止进程启动时间超时。
+            如果start()函数返回的结果中 usingWrapper的值为true，超时时间设为1200秒（在 Android 5.0以前这个值为300秒)。
+
+            如果时间到了，但是进程还没有启动完成，AMS将弹出发生ANR的对话框。
+    */
 
     void updateUsageStats(ActivityRecord component, boolean resumed) {
         if (DEBUG_SWITCH) Slog.d(TAG, "updateUsageStats: comp=" + component + "res=" + resumed);
@@ -4843,7 +4905,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             Slog.w(TAG, "Spurious process start timeout - pid not known for " + app);
         }
     }
-
+    //wwxx attachApplication 方法只是调用了内部的attachApplicationLocked()方法，代码如下:
     private final boolean attachApplicationLocked(IApplicationThread thread,
             int pid) {
 
@@ -8156,23 +8218,36 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
         return new ProcessRecord(stats, info, proc, uid);
     }
+/*wwxx
+在Android 中，进程（Process）的概念被弱化了，传统的进程是程序执行的载体，进程退出也意味着应用关闭。
+但是在 Android中，进程只是一个运行组件的容器，当系统需要运行一个组件时，启动包含它的进程，当组件不再使用时，进程也会被关闭。
+例如一个 apk文件中的两个service，可以运行在一个进程中，也可以运行在各自的进程中。
 
+虽然在Android的应用开发中，不再强调进程的概念，但是在AMS 中，还必须管理和调度进程。
+AMS对进程的管理，主要体现在两个方面:一是动态地调整进程在mLruProcesses列表的位置，二是调整进程的oom_adj的值，这两项调整和系统进行自动内存回收有关。
+当内存不足时，系统会关闭一些进程来释放内存。
+
+系统主要根据进程的oom_adj值来挑选要杀死的进程，oom_adj值越大表示进程更可能被杀死。
+*/
+
+//前面介绍了，AMS中启动一个进程调用的是addAppLocked()方法，代码如下:
     final ProcessRecord addAppLocked(ApplicationInfo info, boolean isolated) {
         ProcessRecord app;
-        if (!isolated) {
-            app = getProcessRecordLocked(info.processName, info.uid, true);
+        if (!isolated) {// wwxx isolated为true表示要启动一个新进程,在已经启动的进程列表中查找
+            app = getProcessRecordLocked(info.processName, info.uid, true);////在已经启动的进程列表中查找
         } else {
             app = null;
         }
 
         if (app == null) {
+            //创建一个 ProcessRecord对象,ProcessRecord的数据结构
             app = newProcessRecordLocked(info, null, isolated);
             mProcessNames.put(info.processName, app.uid, app);
             if (isolated) {
                 mIsolatedProcesses.put(app.uid, app);
             }
-            updateLruProcessLocked(app, false, null);
-            updateOomAdjLocked();
+            updateLruProcessLocked(app, false, null);// 方法用来更新运行中的进程的状态
+            updateOomAdjLocked();//方法用来更新进程的优先级,这两个方法是 Process 管理的核心
         }
 
         // This package really, really can not be stopped.
@@ -8192,7 +8267,8 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
         if (app.thread == null && mPersistentStartingProcesses.indexOf(app) < 0) {
             mPersistentStartingProcesses.add(app);
-            startProcessLocked(app, "added application", app.processName);
+            //启动进程
+            startProcessLocked(app, "added application", app.processName);//startProcessLocked 是启动进程的方法
         }
 
         return app;
@@ -9192,17 +9268,24 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
         }
     }
-    
+/*wwxx
+SystemServer在启动完所有服务之后,将调用AMS 的systemReady()方法。
+
+这个方法是Android进入用户交互阶段前最后进行的准备工作。systemReady()方法比较长,我们一段段地分析它。
+
+
+*/    
     public void systemReady(final Runnable goingCallback) {
         synchronized(this) {
-            if (mSystemReady) {
+            if (mSystemReady) {//调用时的值为False，因此，不会执行下面的调用
                 if (goingCallback != null) goingCallback.run();
                 return;
             }
             
             // Check to see if there are any update receivers to run.
-            if (!mDidUpdate) {
-                if (mWaitingUpdate) {
+            //广播升级更新的Intent
+            if (!mDidUpdate) {//检查是否处于更新状态
+                if (mWaitingUpdate) {//如果正在更新则返回
                     return;
                 }
                 Intent intent = new Intent(Intent.ACTION_PRE_BOOT_COMPLETED);
@@ -9281,9 +9364,10 @@ public final class ActivityManagerService extends ActivityManagerNative
                         }
                     }
                 }
-                if (mWaitingUpdate) {
+                if (mWaitingUpdate) {////如果有组件接收Intent，本次调用退出
                     return;
                 }
+                //运行到这里，说明没有组件接收Intent，把mDidUpdate改为true
                 mDidUpdate = true;
             }
 
@@ -9293,12 +9377,18 @@ public final class ActivityManagerService extends ActivityManagerNative
                 return;
             }
         }
-
+        //wwxx 清理进程
+        /*
+            这段代码的作用是找到已经启动的应用进程，然后杀掉它们。目的是在启动Home前准备一个干净的环境。
+            例如，前面发送的升级 Intent可能会启动一批应用，这些应用升级完后也许没有主动退出，因此，要清理掉它们。
+            但是有一种进程是不用退出的，isAllowedWhileBooting()方法会判断进程是否带有FLAG_PERSISTENT标记，如果有就不用退出了。
+            因为带有这个标志的进程下面还要启动它们，这里就留下它们不清理了。
+        */
         ArrayList<ProcessRecord> procsToKill = null;
         synchronized(mPidsSelfLocked) {
             for (int i=mPidsSelfLocked.size()-1; i>=0; i--) {
                 ProcessRecord proc = mPidsSelfLocked.valueAt(i);
-                if (!isAllowedWhileBooting(proc.info)){
+                if (!isAllowedWhileBooting(proc.info)){//wwxx 检查进程是否有persistent标志
                     if (procsToKill == null) {
                         procsToKill = new ArrayList<ProcessRecord>();
                     }
@@ -9327,8 +9417,13 @@ public final class ActivityManagerService extends ActivityManagerNative
             SystemClock.uptimeMillis());
 
         synchronized(this) {
+            /*wwxx
+                手机生产时，需要进入工厂模式来执行检测程序，工厂模式下运行的程序需要响应Intent"ACTION FACTORY_TEST”，
+                因此，这里会判断手机是否处于工厂模式，如果是则查找响应该Intent 的程序，并放置在mTopComponent变量中，这样将会启动测试程序;
+                如果找不到程序，则发送出错的 Message。
+            */
             // Make sure we have no pre-ready processes sitting around.
-            
+            //wwxx 如果处于“工厂测试模式”,启动用于工厂测试的模块
             if (mFactoryTest == SystemServer.FACTORY_TEST_LOW_LEVEL) {
                 ResolveInfo ri = mContext.getPackageManager()
                         .resolveActivity(new Intent(Intent.ACTION_FACTORY_TEST),
@@ -9337,7 +9432,9 @@ public final class ActivityManagerService extends ActivityManagerNative
                 if (ri != null) {
                     ActivityInfo ai = ri.activityInfo;
                     ApplicationInfo app = ai.applicationInfo;
+                    // 判断找到的测试程序是否是系统程序
                     if ((app.flags&ApplicationInfo.FLAG_SYSTEM) != 0) {
+                        //把测试程序的信息设置在下面的变量中,将会启动测试程序
                         mTopAction = Intent.ACTION_FACTORY_TEST;
                         mTopData = null;
                         mTopComponent = new ComponentName(app.packageName,
@@ -9351,6 +9448,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                             com.android.internal.R.string.factorytest_no_action);
                 }
                 if (errorMsg != null) {
+                    ////发送出错的信息
                     mTopAction = null;
                     mTopData = null;
                     mTopComponent = null;
@@ -9361,29 +9459,43 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
             }
         }
-
+        //读取设置信息
+        /*调用retrieveSettings()方法来读取设置,这个方法中读取了4种设置。
+        DEBUG APP:需要调试的app的名称。
+        WAIT FOR DEBUGGER:值为1表示启动调试的 app时要先等待调试器，否则正常启动。
+        ALWAYS_FINISH_ACTIVITIES:值为1表示 Activity不再需要时，系统要立即清除它们。
+        DEVELOPMENT_ FORCE_RTL:值为1表示要将系统设置为从右到左的模式(阿拉伯语等)。
+        */
         retrieveSettings();
 
         synchronized (this) {
-            readGrantedUriPermissionsLocked();
+            //调用loadResourcesOnSystemReady()方法从资源文件中读取了几个缺省的系统配置信息。
+            readGrantedUriPermissionsLocked();//读取设置信息
         }
-
+        //这个回调方法是 SystemSever 中定义的，非常庞大，这里就先不分析了。
         if (goingCallback != null) goingCallback.run();
-        
+
+
+        /*wwxx
+            这一段代码的主要作用是启动带有标记FLAG_PERSISTENT 的应用，启动应用通过调用addAppLocked()方法完成的,这个方法后面会分析。
+            启动Home应用则是通过startHomeActivityLocked()来完成的。Home启动后，Android将发出Intent ACTION_BOOT_COMPLETED，标志系统启动完成。
+        */
+
+        //启动带有标记为 FLAG_PERSISTENT的应用和 Home应用
         synchronized (this) {
             if (mFactoryTest != SystemServer.FACTORY_TEST_LOW_LEVEL) {
                 try {
+                    //查找系统中带有FLAG_ PERSISTENT标志的应用
                     List apps = AppGlobals.getPackageManager().
                         getPersistentApplications(STOCK_PM_FLAGS);
                     if (apps != null) {
                         int N = apps.size();
                         int i;
                         for (i=0; i<N; i++) {
-                            ApplicationInfo info
-                                = (ApplicationInfo)apps.get(i);
-                            if (info != null &&
-                                    !info.packageName.equals("android")) {
-                                addAppLocked(info, false);
+                            ApplicationInfo info= (ApplicationInfo)apps.get(i);
+                                //排除掉包名为"Android”的应用,因为前面已经加入了
+                            if (info != null &&!info.packageName.equals("android")) {
+                                addAppLocked(info, false);//启动应用
                             }
                         }
                     }
@@ -9393,7 +9505,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
 
             // Start up initial activity.
-            mBooting = true;
+            mBooting = true;////启动结束的标志
             
             try {
                 if (AppGlobals.getPackageManager().hasSystemUidErrors()) {
@@ -9433,6 +9545,13 @@ public final class ActivityManagerService extends ActivityManagerNative
             sendUserSwitchBroadcastsLocked(-1, mCurrentUserId);
         }
     }
+    /*wwxx
+        SystemReady()方法到此就分析完成了，从上面的分析可以了解两件事情。
+        系统应用如果响应ACTION_PRE_BOOT_COMPLETED,可以在Android升级后得到通知。
+        如果系统应用希望在Home启动前启动，可以加入“FLAG PERSISTENT”的标志。接收Intent“ACTION BOOT COMPLETED”的应用只能在Home启动后再启动。
+    */
+
+
 
     private boolean makeAppCrashingLocked(ProcessRecord app,
             String shortMsg, String longMsg, String stackTrace) {
@@ -15405,7 +15524,32 @@ public final class ActivityManagerService extends ActivityManagerNative
         return success;
     }
 
+/*
+updateOomAdjLocked() 方法中通过调用 computeOomAdjLocked() 方法来计算进程的oom的值。
+如果计算后该进程的curAdj变量的值仍然大于等于系统定义的最大oom_adj值(UNKNOWNADJ)，则表明该进程属于“cached”进程或“空”进程，
+updateOomAdjLocked()方法将会为该进程分配 oom_adj 的值。
+如果用来表示进程状态的变量 curProcState 的值为 PROCESS_STATECACHED_ACTIVITY 或者 PROCESS_STATE_CACHED_ACTIVITY_CLIENT，说明进程是“cached”进程,否则是“空”进程。
+
+updateOomAdjLocked() 方法中根据系统定义的“cached”进程的最大和最小oom_adj 值，先用公式(CACHED_APP_MAX_ADJ-CACHED_APP_MIN_ADJ + 1)/2计算出 slot 的数量为3，
+然后再计算出每个slot需要容纳的“cached"进程的数量 cachedFactor 和"空”进程的数量emptyFactor。这样做的目的是为了将系统中的“cached”进程和“空”进程分成不同的级别，
+每个级别有相同的oom_adj值，级别和级别间隔的oom_adj值为2。因此，updateOomAdjLocked()方法区分某个进程是“cached”进程还是“空”进程后，
+会按照从低到高的原则把进程放到某个级别中，如果该级别的进程数满了，就进入下一个级别。
+
+这里有两点要注意，一是计算 oom_adj值的时候，是从mLruProcesses列表的尾部开始计算的，这就意味着排在后面的进程如果变成了cached进程或“空”进程，
+将会比它前面的同类进程有更小的oom_adj值(值越大越可能被关闭),这也是为什么系统经常要调整进程在mLruProcesses列表中的位置。
+
+
+第二点是计算oom_adj值时，还要调用modifyRawOomAdj()方法来对该进程的oom_adj值进行修正，修正的结果是将该进程的oom_adj值再加一。
+
+上面介绍了如何分配“cached”进程和“空”进程的oom_adj值，下面再看看computeOomAdjLocked 方法如何计算其他类型进程的oom_adj 值。
+
+computeOomAdjLocked()方法比较长，我们就不分析代码了，只对这个方法完成的工作做一个总结。
+*/
+
+
+
     final void updateOomAdjLocked() {
+        //// wwxx 获取位手前台的Activity和它所在的进程
         final ActivityRecord TOP_ACT = resumedAppLocked();
         final ProcessRecord TOP_APP = TOP_ACT != null ? TOP_ACT.app : null;
         final long now = SystemClock.uptimeMillis();
@@ -15438,8 +15582,10 @@ public final class ActivityManagerService extends ActivityManagerNative
         // how many slots we have for background processes; we may want
         // to put multiple processes in a slot of there are enough of
         // them.
+        // 计算cached进程的slot数，结果为(15-9+1)/2 = 3
         int numSlots = (ProcessList.CACHED_APP_MAX_ADJ
                 - ProcessList.CACHED_APP_MIN_ADJ + 1) / 2;
+        ////计算“空”进程的数量
         int numEmptyProcs = N - mNumNonCachedProcs - mNumCachedHiddenProcs;
         if (numEmptyProcs > cachedProcessLimit) {
             // If there are more empty processes than our limit on cached
@@ -15448,12 +15594,17 @@ public final class ActivityManagerService extends ActivityManagerNative
             // down to the bottom, so if we are running low on memory we will
             // have a better chance at keeping around more cached processes
             // instead of a gazillion empty processes.
+            //如果空进程的数量超过了cached进程的限制值，更新它为限制值
             numEmptyProcs = cachedProcessLimit;
         }
+        //计算平均每个slot的“空”进程数
         int emptyFactor = numEmptyProcs/numSlots;
         if (emptyFactor < 1) emptyFactor = 1;
+        //计算平均每个slot的cached进程数
         int cachedFactor = (mNumCachedHiddenProcs > 0 ? mNumCachedHiddenProcs : 1)/numSlots;
         if (cachedFactor < 1) cachedFactor = 1;
+
+        ////初始化一些控制变量
         int stepCached = 0;
         int stepEmpty = 0;
         int numCached = 0;
@@ -15468,31 +15619,34 @@ public final class ActivityManagerService extends ActivityManagerNative
         int curCachedAdj = ProcessList.CACHED_APP_MIN_ADJ;
         int nextCachedAdj = curCachedAdj+1;
         int curEmptyAdj = ProcessList.CACHED_APP_MIN_ADJ;
-        int nextEmptyAdj = curEmptyAdj+2;
-        for (int i=N-1; i>=0; i--) {
+        int nextEmptyAdj = curEmptyAdj+2;// “空”进程比cached进程的oom_obj的起始值大1
+        for (int i=N-1; i>=0; i--) { // 从 mLruProcesses 列表的后面向前处理
             ProcessRecord app = mLruProcesses.get(i);
             if (!app.killedByAm && app.thread != null) {
                 app.procStateChanged = false;
                 final boolean wasKeeping = app.keeping;
+                //计算进程的oom adj值
                 computeOomAdjLocked(app, ProcessList.UNKNOWN_ADJ, TOP_APP, true, now);
 
                 // If we haven't yet assigned the final cached adj
                 // to the process, do that now.
                 if (app.curAdj >= ProcessList.UNKNOWN_ADJ) {
+                    //如果计算后的 oom_adj值大于等于系统定义的最大oom_adj的值
                     switch (app.curProcState) {
                         case ActivityManager.PROCESS_STATE_CACHED_ACTIVITY:
                         case ActivityManager.PROCESS_STATE_CACHED_ACTIVITY_CLIENT:
                             // This process is a cached process holding activities...
                             // assign it the next cached value for that type, and then
                             // step that cached level.
+                            //如果进程属于cached进程类型
                             app.curRawAdj = curCachedAdj;
                             app.curAdj = app.modifyRawOomAdj(curCachedAdj);
                             if (DEBUG_LRU && false) Slog.d(TAG, "Assigning activity LRU #" + i
                                     + " adj: " + app.curAdj + " (curCachedAdj=" + curCachedAdj
                                     + ")");
                             if (curCachedAdj != nextCachedAdj) {
-                                stepCached++;
-                                if (stepCached >= cachedFactor) {
+                                stepCached++;                    //统计本级别的进程数
+                                if (stepCached >= cachedFactor) {//进入下一个级别
                                     stepCached = 0;
                                     curCachedAdj = nextCachedAdj;
                                     nextCachedAdj += 2;
@@ -15503,19 +15657,21 @@ public final class ActivityManagerService extends ActivityManagerNative
                             }
                             break;
                         default:
+                        ////其他进程都属于“空”进程
                             // For everything else, assign next empty cached process
                             // level and bump that up.  Note that this means that
                             // long-running services that have dropped down to the
                             // cached level will be treated as empty (since their process
                             // state is still as a service), which is what we want.
+
                             app.curRawAdj = curEmptyAdj;
                             app.curAdj = app.modifyRawOomAdj(curEmptyAdj);
                             if (DEBUG_LRU && false) Slog.d(TAG, "Assigning empty LRU #" + i
                                     + " adj: " + app.curAdj + " (curEmptyAdj=" + curEmptyAdj
                                     + ")");
                             if (curEmptyAdj != nextEmptyAdj) {
-                                stepEmpty++;
-                                if (stepEmpty >= emptyFactor) {
+                                stepEmpty++;                //统计本级别的进程数
+                                if (stepEmpty >= emptyFactor) {//进入下一个级别
                                     stepEmpty = 0;
                                     curEmptyAdj = nextEmptyAdj;
                                     nextEmptyAdj += 2;
@@ -15527,7 +15683,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                             break;
                     }
                 }
-
+                //更新进程的各种oom_adj值
                 applyOomAdjLocked(app, wasKeeping, TOP_APP, true, false, now);
 
                 // Count the number of process types.

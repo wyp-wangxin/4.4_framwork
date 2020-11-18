@@ -35,6 +35,7 @@ import android.view.Display;
 final class ProcessList {
     // The minimum time we allow between crashes, for us to consider this
     // application to be bad and stop and its services and reject broadcasts.
+    //// wwxx 定义发生crash的最小时间间隔，如果进程在小于这个时间内发生crash，会被认为是"坏"进程
     static final int MIN_CRASH_INTERVAL = 60*1000;
 
     // OOM adjustments for processes in various states:
@@ -42,15 +43,18 @@ final class ProcessList {
     // Adjustment used in certain places where we don't know it yet.
     // (Generally this is something that is going to be cached, but we
     // don't know the exact value in the cached range to assign yet.)
+    // wwxx //处于某种不可知状态的进程的oom adj值
     static final int UNKNOWN_ADJ = 16;
 
     // This is a process only hosting activities that are not visible,
     // so it can be killed without any disruption.
+    //cached进程的oom adj的最大值和最小值定义
     static final int CACHED_APP_MAX_ADJ = 15;
     static final int CACHED_APP_MIN_ADJ = 9;
 
     // The B list of SERVICE_ADJ -- these are the old and decrepit
     // services that aren't as shiny and interesting as the ones in the A list.
+    ////位于B列表的服务进程的oom_adj值。位于B列表的都是一些旧的、过时的服务进程
     static final int SERVICE_B_ADJ = 8;
 
     // This is the process of the previous application that the user was in.
@@ -59,55 +63,68 @@ final class ProcessList {
     // task switch (toggling between the two top recent apps) as well as normal
     // UI flow such as clicking on a URI in the e-mail app to view in the browser,
     // and then pressing back to return to e-mail.
+    //当前Activity的前一个Activity所处进程的oom_adj值
     static final int PREVIOUS_APP_ADJ = 7;
 
     // This is a process holding the home application -- we want to try
     // avoiding killing it, even if it would normally be in the background,
     // because the user interacts with it so much.
+    // Home进程的oom_adj值
     static final int HOME_APP_ADJ = 6;
 
     // This is a process holding an application service -- killing it will not
     // have much of an impact as far as the user is concerned.
+    //只包含组件service的进程的oom_adj值
     static final int SERVICE_ADJ = 5;
 
     // This is a process with a heavy-weight application.  It is in the
     // background, but we want to try to avoid killing it.  Value set in
     // system/rootdir/init.rc on startup.
+    // heavy-weight进程的oom adj值
     static final int HEAVY_WEIGHT_APP_ADJ = 4;
 
     // This is a process currently hosting a backup operation.  Killing it
     // is not entirely fatal but is generally a bad idea.
+    //正在执行backup的进程的oom adj值
     static final int BACKUP_APP_ADJ = 3;
 
     // This is a process only hosting components that are perceptible to the
     // user, and we really want to avoid killing them, but they are not
     // immediately visible. An example is background music playback.
+    //不在前台但是包含有用户可感知组件的进程的oom_adj值（例如播放音乐的后台进程)
     static final int PERCEPTIBLE_APP_ADJ = 2;
 
     // This is a process only hosting activities that are visible to the
     // user, so we'd prefer they don't disappear.
+    ////仅包含Activity的可见进程的oom_ adj值
     static final int VISIBLE_APP_ADJ = 1;
 
     // This is the process running the current foreground app.  We'd really
     // rather not kill it!
+    ////前台的进程的oom_adj值
     static final int FOREGROUND_APP_ADJ = 0;
 
     // This is a system persistent process, such as telephony.  Definitely
     // don't want to kill it, but doing so is not completely fatal.
+    ////死亡后会重启的PERSISTENT 进程的oom_adj值
     static final int PERSISTENT_PROC_ADJ = -12;
 
     // The system process runs at the default adjustment.
+    //系统进程的oom_adj值
     static final int SYSTEM_ADJ = -16;
 
     // Special code for native processes that are not being managed by the system (so
     // don't have an oom adj assigned by the system).
+    //包含native层代码的进程的oom_adj值
     static final int NATIVE_ADJ = -17;
 
     // Memory pages are 4K.
+    //定义内存页面大小为4KB
     static final int PAGE_SIZE = 4*1024;
 
     // The minimum number of cached apps we want to be able to keep around,
     // without empty apps being able to push them out of memory.
+    //系统最少处于cached状态进程的数量
     static final int MIN_CACHED_APPS = 2;
 
     // The maximum number of cached processes we will keep around before killing them.
@@ -119,16 +136,32 @@ final class ProcessList {
     // we have no limit on the number of service, visible, foreground, or other such
     // processes and the number of those processes does not count against the cached
     // process limit.
+
+/*wwxx
+    这里先解释“空”进程和 cached进程的概念。
+    如果一个进程中不含有任何组件，这个进程被认为是“空”进程。
+    例如，一个进程启动时只含有一个 Activity，当这个Activity销毁后，该进程就变成了一个“空”进程。
+
+    当Android结束一个进程时，并不会将一个进程立即从系统中删除，而是把它标记为cached进程，再启动新进程时，
+    会优先使用cached进程，这样就能加快应用的启动速度。
+*/
+
+
+
+    ///系统最大处于cached状态进程的数量
     static final int MAX_CACHED_APPS = 24;
 
     // We allow empty processes to stick around for at most 30 minutes.
+    //定义空进程最大保存时间为30分钟
     static final long MAX_EMPTY_TIME = 30*60*1000;
 
     // The maximum number of empty app processes we will let sit around.
+    //系统最大的空进程数量。它的值为MAX_CACHED_APPS 的2/3
     private static final int MAX_EMPTY_APPS = computeEmptyProcessLimit(MAX_CACHED_APPS);
 
     // The number of empty apps at which we don't consider it necessary to do
     // memory trimming.
+    //开始内存回收的空进程的阀值。系统中的空进程数量低于这个值不会执行内存回收
     static final int TRIM_EMPTY_APPS = MAX_EMPTY_APPS/2;
 
     // The number of cached at which we don't consider it necessary to do
@@ -144,18 +177,21 @@ final class ProcessList {
     // These are the various interesting memory levels that we will give to
     // the OOM killer.  Note that the OOM killer only supports 6 slots, so we
     // can't give it a different value for every possible kind of process.
+    //定义用于内存回收的oom_adj阀值
     private final int[] mOomAdj = new int[] {
             FOREGROUND_APP_ADJ, VISIBLE_APP_ADJ, PERCEPTIBLE_APP_ADJ,
             BACKUP_APP_ADJ, CACHED_APP_MIN_ADJ, CACHED_APP_MAX_ADJ
     };
     // These are the low-end OOM level limits.  This is appropriate for an
     // HVGA or smaller phone with less than 512MB.  Values are in KB.
+    //定义用于低配置（HVGA或更低，或内存小于512MB）设备内存回收的内存阀值
     private final long[] mOomMinFreeLow = new long[] {
             8192, 12288, 16384,
             24576, 28672, 32768
     };
     // These are the high-end OOM level limits.  This is appropriate for a
     // 1280x800 or larger screen with around 1GB RAM.  Values are in KB.
+    //定义用于高配置（高分辨率屏或内存1GB左右）设备内存回收的内存阀值
     private final long[] mOomMinFreeHigh = new long[] {
             49152, 61440, 73728,
             86016, 98304, 122880

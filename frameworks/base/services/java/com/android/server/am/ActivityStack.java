@@ -145,6 +145,75 @@ final class ActivityStack {
      * The back history of all previous (and possibly still
      * running) activities.  It contains #TaskRecord objects.
      */
+    /*
+    那么，如何才能开始一个新的 Task 呢?Intent 中定义了一个标志FLAG ACTIVITY NEWTASK，
+    在 startActive的 Intent参数中加入该标志就能开启一个新的task。但是，如果系统中已经有相同affinity 的 Task存在，并不会再启动一个Task，而是将旧的Task带到前台。
+
+    affinity的意思是“亲和度”，它的类型是字符串，我们可以把它理解成Task的名称。
+    Affinity字串在系统中是惟一的，AMS查找一个Task，最优先比较它的 affinity。
+    ActvityStack类中用来查找Task的方法是 findTaskLocked() 自己看代码处。
+
+    findTaskLocked()方法首先比较 TaskRecord 对象的 affinity变量是否等于ActivityRecord 的taskAffinity变量。
+    既然一个 Task的affinity 这么重要，它是在哪里定义的呢?
+    在应用的AndroidManifest.xml文件中,<activity>标签有一个taskAffinity属性,当使用标志FLAG_ACTIVITYNEW_TASK启动一个 Activity时，
+    这个Activity 的 taskAffinity属性中的字符串就会成为 Task的affinity。
+    以后加入这个Task的Activity，即使它们的taskAffinity属性定义了一个不同的字符串.也不会改变Task已有的affinity。因此,<activity>标签的taskAffinity 属性只有在启动一个新的Task 
+    时，才会起作用。
+
+    通常在开发应用时很少会去指定一个taskAffinity属性，不指定这个属性的Activity将会继承<application>标签的 taskAffinity属性，
+    如果<application>标签中也没有定义，那么taskAffinity的缺省值将是应用包名。
+    因此，一个应用中所有Activity 的 taskAffinity属性值缺省情况下是相同的正是因为这个原因,在应用中如果启动本应用的另一个Activity,
+    即使使用了标志FLAG_ACTIVITYNEW_TASK也不一定会启动一个新Task，除非这个Activity定义了不同的taskAffinity属性。
+
+    接下来，我们讨论另一个和 Actvity相关的问题:Activity对象的复用。
+    启动一个 Activity时，如果系统的后台Task已经有一个该Activity 的实例存在了
+    ，系统再创建一个新的Activity实例还是将已经存在的Activity实例切换到前台呢?
+    答案是都有可能，有多种因素可以影响结果，包括Activity的属性值以及Intent 中指定的标志。我们先看看Activity的属性 launchMode会有哪些影响:
+    <activity>标签的属性launchMode（启动模式）可以是：
+
+    standard模式:standard模式下的Activity每次启动时都会创建该Activity 的实例对象;
+                同一个Task 中可以同时存在该Activity的多个实例;一个 Activity的多个实例可以出现在多个Task栈中。
+    singleTop模式:如果设置为singleTop模式的Activity实例位于Task的栈顶，则不会创建一个新的对象，
+                但是该Activity对象切换到前台时，它的onNewIntent()方法将会调用，新的 intent通过这种方式传递给实例对象。
+                如果Activity 不在其 Task的栈顶，则和 standard模式的Activity一样，会创建新的实例对象。  
+    singleTask模式:设置为singleTask模式的Activity具有系统惟一性，只能在系统中创建该Activity 的一个实例对象。
+                  启动设置为singleTask的Activity 时，如果系统中已经存在该Activity的实例对象，则将其所在的Task中排在它前面的 Activity都弹出栈，将该Activity带到栈顶，
+                  并调用其onNewIntent方法，将新的intent 传递给该实例对象。如果该Acitivy在系统中还没有实例对象，则会创建一个该Activity的实例对象，
+                  如果该Activity 的 taskAffinity属性值和当前Task的affinity值相同，它会加入到当前的 Task 中，
+                  否则，即使启动该Activity的 Intent 中没有指定FLAG ACTIVITY_NEW_TASK标志，也会启动新的Task，将Activity置于其中。   
+    singleInstance模式:设置为singleInstance模式的Activity同样具有系统惟一性，系统中只有该Activity的一个实例对象，
+                       同时 Activity位于一个单独的Task中，该Task 中也只有一个Activity。
+
+    通常情况下，一个Activity创建出来后，会停留在某个Task中，直到它被销毁。
+    但是，如果Activity 的allowTaskReparenting属性设置为true,则该Activity可以在不同的Task 之间转移。
+    但是,这个属性只有在启动 Activity的 Intent 中设置了FLAG_ACTIVITY_RESET_TASK_IF_NEEDED标志时才起作用。
+
+    默认情况下，如果一个Task位于后台的时间太长，系统会清理该Task中的Activity，除了最初启动Task 的Acitvity 以外，
+    其他的Activity都会被系统销毁。如果应用希望保留这些Activity,可以将启动Task的Activity的属性alwaysRetainTaskState设置为true。
+
+    前面介绍了，当使用带有标志FLAG_ACTIVITY_NEW_TASK的 Intent启动一个Activity时，如果该Activity位于一个 Task 中，会将Task整体带到前台，其中的Activity 保持不变。
+    但是，如果该Activity启动的是Task的Activity，即所谓的“根（root)”Activity，同时该Activity 的属性clearTaskOnLaunch已经设置为true,那么系统除了将Task带到前台外,
+    还会清除除了root Activity以外所有Activity。因此，这个属性的作用相当于每次都销毁Task，然后重新开始一个。    
+
+    Activity中还有一个和 Task相关的属性“finishOnTaskLaunch”。启动这个属性设置为true的Activity时,系统将会销毁该Activity，然后重新再启动一个。
+
+    除了FLAG_ACTIVITY_NEW_TASK标志以外, Intent中还定义了几个和Activity相关的标志。
+    FLAG_ACTIVITY_CLEAR_TOP:如果启动的Activity已经存在，则把该Activity带到前台，并把它前面的Activity都弹出栈。
+    FLAG_ACTIVITY_BROUGHT_TO_FRONT:如果启动的 Activity已经存在，则把该Activity带到前台，但是不关闭它前面的Activity。
+    FLAG_ACTIVITY_SINGLE_TOP:如果启动的Activity已经位于Task的栈顶，则不会创建一个Activity，而是把该Activity带到前台。
+    其实Intent 中还有一些标志和 Activity相关，但是几乎很少使用，这里就不介绍了
+
+    /*wwxx
+    Task是Activity的集合。Android把用户一次相关操作中使用的Activity 按照先后顺序保存Task中，这样当用户按 back键时就能按照相反的顺序退回去。
+    Task像一个栈，以先进后退的方式管理着Activity。
+    系统运行时内存中会存在着多个Task，当我们按Recent键时，会弹出一个列表让你选择，这个列表就是系统中存在的 Task集合，
+    选择一个 Task将把它所包含的Activity 作为一个整体带到前台。Task中的Activity的顺序通常是不能改变的，只能是压栈或出栈。
+
+    AMS中使用ActvityStack类来管理Task，它管理的Task都存放在成员变量 m TaskHistory中，定义如下:
+
+    mTaskHistory是一个列表，存储的是TaskRecord对象。
+    TaskRecord对象表示一个 Task，它的成员变量mActivities 也是一个列表,存储了属于该Task 中的所有ActivityRecord对象。
+    */
     private ArrayList<TaskRecord> mTaskHistory = new ArrayList<TaskRecord>();
 
     /**
@@ -1248,11 +1317,18 @@ final class ActivityStack {
         return resumeTopActivityLocked(prev, null);
     }
 
+/*
+resumeTopActivitiesLocked()是 AMS中很多地方都会调用的方法，主要的作用是将位于栈顶的Activity显示出来，这时，当前的Activity(通过变量mResumedActivity引用）还显示在屏幕上。
+上一节中看到的resumeTopActivitiesLocked()方法位于ActivityStackSupervisor类，它最后会调用ActivityStack类的resumeTopActivitiesLocked()方法，
+这个方法又调用了内部方法resumeTopActivityInnerLocked()，代码如下:
+
+*/
+
     final boolean resumeTopActivityLocked(ActivityRecord prev, Bundle options) {
         if (ActivityManagerService.DEBUG_LOCKSCREEN) mService.logLockScreen("");
 
         // Find the first activity that is not finishing.
-        ActivityRecord next = topRunningActivityLocked(null);
+        ActivityRecord next = topRunningActivityLocked(null);// next表示要启动的Activity
 
         // Remember how we'll process this pause/resume situation, and ensure
         // that the state is reset however we wind up proceeding.
@@ -1262,6 +1338,7 @@ final class ActivityStack {
         if (next == null) {
             // There are no more activities!  Let's just start up the
             // Launcher...
+            //如果当前Task没有Activty，显示Home Activity
             ActivityOptions.abort(options);
             if (DEBUG_STATES) Slog.d(TAG, "resumeTopActivityLocked: No more activities go home");
             if (DEBUG_STACK) mStackSupervisor.validateTopActivitiesLocked();
@@ -1280,7 +1357,7 @@ final class ActivityStack {
             ActivityOptions.abort(options);
             if (DEBUG_STATES) Slog.d(TAG, "resumeTopActivityLocked: Top activity resumed " + next);
             if (DEBUG_STACK) mStackSupervisor.validateTopActivitiesLocked();
-            return false;
+            return false;////如果当前的Activity就是要启动的Activy，直接返回
         }
 
         final TaskRecord nextTask = next.task;
@@ -1312,7 +1389,7 @@ final class ActivityStack {
             ActivityOptions.abort(options);
             if (DEBUG_STATES) Slog.d(TAG, "resumeTopActivityLocked: Going to sleep and all paused");
             if (DEBUG_STACK) mStackSupervisor.validateTopActivitiesLocked();
-            return false;
+            return false;//如果系统正准备睡眠或关闭,直接退出
         }
 
         // Make sure that the user who owns this activity is started.  If not,
@@ -1322,7 +1399,7 @@ final class ActivityStack {
             Slog.w(TAG, "Skipping resume of top activity " + next
                     + ": user " + next.userId + " is stopped");
             if (DEBUG_STACK) mStackSupervisor.validateTopActivitiesLocked();
-            return false;
+            return false;//检查用户Id，为null则退出
         }
 
         // The activity may be waiting for stop, but that is no longer
@@ -1342,7 +1419,7 @@ final class ActivityStack {
             if (DEBUG_SWITCH || DEBUG_PAUSE || DEBUG_STATES) Slog.v(TAG,
                     "resumeTopActivityLocked: Skip resume: some activity pausing.");
             if (DEBUG_STACK) mStackSupervisor.validateTopActivitiesLocked();
-            return false;
+            return false;//如果我们当前正在暂停活动，那么什么也不要做直到完成。
         }
 
         // Okay we are now going to start a switch, to 'next'.  We may first
@@ -1412,6 +1489,7 @@ final class ActivityStack {
 
         if (prev != null && prev != next) {
             if (!prev.waitingVisible && next != null && !next.nowVisible) {
+                //如果Activity还不可见，把前一个Activity 加入mWaitingvisibleActivities列表
                 prev.waitingVisible = true;
                 mStackSupervisor.mWaitingVisibleActivities.add(prev);
                 if (DEBUG_SWITCH) Slog.v(
@@ -1425,6 +1503,7 @@ final class ActivityStack {
                 // the resumed activity to be shown so we can decide if the
                 // previous should actually be hidden depending on whether the
                 // new one is found to be full-screen or not.
+                //如果Acitvity已经是visible状态，把前一个activity隐藏起来
                 if (prev.finishing) {
                     mWindowManager.setAppVisibility(prev.appToken, false);
                     if (DEBUG_SWITCH) Slog.v(TAG, "Not waiting for visible to hide: "
@@ -1498,12 +1577,13 @@ final class ActivityStack {
         } else {
             next.clearOptionsLocked();
         }
-
+        //调用windowManagerService方法来处理Activity的显示
         ActivityStack lastStack = mStackSupervisor.getLastStack();
         if (next.app != null && next.app.thread != null) {
             if (DEBUG_SWITCH) Slog.v(TAG, "Resume running: " + next);
 
             // This activity is now becoming visible.
+            //如果Activity所在的应用已经存在，只需要把Activity显示出来
             mWindowManager.setAppVisibility(next.appToken, true);
 
             // schedule launch ticks to collect information about slow apps.
@@ -1562,6 +1642,7 @@ final class ActivityStack {
 
             try {
                 // Deliver all pending results.
+                //如果这个Activity中还有等待返回的结果,先发送结果
                 ArrayList<ResultInfo> a = next.results;
                 if (a != null) {
                     final int N = a.size();
@@ -1573,7 +1654,7 @@ final class ActivityStack {
                     }
                 }
 
-                if (next.newIntents != null) {
+                if (next.newIntents != null) {//如果前面介绍的几种重启Activity的情况，先调用应用的onNewIntent
                     next.app.thread.scheduleNewIntent(next.newIntents, next.appToken);
                 }
 
@@ -1585,6 +1666,7 @@ final class ActivityStack {
                 mService.showAskCompatModeDialogLocked(next);
                 next.app.pendingUiClean = true;
                 next.app.forceProcessStateUpTo(ActivityManager.PROCESS_STATE_TOP);
+                //调用应用进程Activity的 onResume
                 next.app.thread.scheduleResumeActivity(next.appToken, next.app.repProcState,
                         mService.isNextTransitionForward());
 
@@ -1633,6 +1715,7 @@ final class ActivityStack {
 
         } else {
             // Whoops, need to restart this activity!
+            //如果Activity所在的应用还没有启动,先启动应用
             if (!next.hasBeenLaunched) {
                 next.hasBeenLaunched = true;
             } else {
@@ -1648,6 +1731,12 @@ final class ActivityStack {
                 if (DEBUG_SWITCH) Slog.v(TAG, "Restarting: " + next);
             }
             if (DEBUG_STATES) Slog.d(TAG, "resumeTopActivityLocked: Restarting " + next);
+
+            /*
+            resumeTopActivitiesLocked()方法虽然很长，但是去掉log和一些不太重要的分支代码后，整个逻辑还是比较清晰的，上面代码中的注释已经很详细了，这里就不重复介绍了。
+            如果 Activity所在的应用已经启动，这里将会调用应用进程的scheduleResumeActivity()方法，最终会导致应用中 Activity对象的 onResume()方法的执行。
+            如果应用还没有启动，或者刚启动，则调用 startSpecificActivityLocked 方法继续处理。
+            */
             mStackSupervisor.startSpecificActivityLocked(next, true, true);
         }
 

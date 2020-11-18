@@ -646,11 +646,17 @@ public final class ActivityStackSupervisor {
         boolean componentSpecified = intent.getComponent() != null;
 
         // Don't modify the client's object!
-        intent = new Intent(intent);
+        intent = new Intent(intent); // 创建一个新的Intent对象,方便改动
 
         // Collect information about the target of the Intent.
+        /*
+        startActivityMayWait()首先调用resolveActivity()方法来获取需要启动的 Activity 的信息。
+        resolveActivity()方法通过调用PackageManagerService的resolveIntent()方法来获取Activity的信息。
+        得到Activity 的信息后,继续调用startActivityLocked()方法来继续启动Activity。
+        如果启动Activity的应用需要返回结果，则调用mService对象的 wait()方法挂起线程等待启动的结果。
+        */
         ActivityInfo aInfo = resolveActivity(intent, resolvedType, startFlags,
-                profileFile, profileFd, userId);
+                profileFile, profileFd, userId);//获取启动的Activity信息
 
         synchronized (mService) {
             int callingPid;
@@ -758,13 +764,13 @@ public final class ActivityStackSupervisor {
 
             Binder.restoreCallingIdentity(origId);
 
-            if (outResult != null) {
+            if (outResult != null) {//如果需要返回结果
                 outResult.result = res;
                 if (res == ActivityManager.START_SUCCESS) {
                     mWaitingActivityLaunched.add(outResult);
                     do {
                         try {
-                            mService.wait();
+                            mService.wait();//等待应用进程中Activity的启动完成
                         } catch (InterruptedException e) {
                         }
                     } while (!outResult.timeout && outResult.who == null);
@@ -1071,7 +1077,11 @@ public final class ActivityStackSupervisor {
             // If a dead object exception was thrown -- fall through to
             // restart the application.
         }
-
+        /* wwxx
+        startSpecificActivityLocked()方法中如果发现应用进程没有启动，则调用 startProcessLocked()方法来启动进程，
+        否则调用realStartActivityLocked()方法继续执行，realStartActivityLocked()方法比较长，我们就不分析了，
+        但是，需要指出的是，这个方法中调用了应用进程中的scheduleLaunchActivity)方法。
+        */
         mService.startProcessLocked(r.processName, r.info.applicationInfo, true, 0,
                 "activity", r.intent.getComponent(), false, false, true);
     }
@@ -1087,7 +1097,9 @@ public final class ActivityStackSupervisor {
         ProcessRecord callerApp = null;
         if (caller != null) {
             callerApp = mService.getRecordForAppLocked(caller);/*wwxx 从传进来的参数caller得到调用者的进程信息，
-                                                         并保存在callerApp变量中，这里就是Launcher应用程序的进程信息了*/
+                                                         并保存在callerApp变量中，这里就是Launcher应用程序的进程信息了
+                                                          
+                                                         */
             if (callerApp != null) {
                 callingPid = callerApp.pid;
                 callingUid = callerApp.info.uid;
@@ -1176,7 +1188,7 @@ public final class ActivityStackSupervisor {
         }
 
         final int startAnyPerm = mService.checkPermission(
-                START_ANY_ACTIVITY, callingPid, callingUid);
+                START_ANY_ACTIVITY, callingPid, callingUid);//检查调用者权限
         final int componentPerm = mService.checkComponentPermission(aInfo.permission, callingPid,
                 callingUid, aInfo.applicationInfo.uid, aInfo.exported);
         if (startAnyPerm != PERMISSION_GRANTED && componentPerm != PERMISSION_GRANTED) {
@@ -1201,12 +1213,12 @@ public final class ActivityStackSupervisor {
             Slog.w(TAG, msg);
             throw new SecurityException(msg);
         }
-
+        //检查Intent防火墙是否屏蔽了该Intent
         boolean abort = !mService.mIntentFirewall.checkStartActivity(intent, callingUid,
                 callingPid, resolvedType, aInfo.applicationInfo);
 
         if (mService.mController != null) {
-            try {
+            try {//将Activity启动的消息通知监听系统Activity变动的接口 IActivityController
                 // The Intent we give to the watcher has the extra data
                 // stripped off, since it can contain private information.
                 Intent watchIntent = intent.cloneFilter();

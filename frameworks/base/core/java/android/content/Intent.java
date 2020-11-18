@@ -597,6 +597,8 @@ import java.util.Set;
  * <p>These are the possible flags that can be used in the Intent via
  * {@link #setFlags} and {@link #addFlags}.  See {@link #setFlags} for a list
  * of all possible flags.
+
+Intent是所请求执行动作的抽象描述，通常作为参数来使用，用于完成Android 各个组件之间的消息传递。Intent类的定义如下:
  */
 public class Intent implements Parcelable, Cloneable {
     // ---------------------------------------------------------------------
@@ -3686,18 +3688,62 @@ public class Intent implements Parcelable, Cloneable {
     public static final int URI_INTENT_SCHEME = 1<<0;
 
     // ---------------------------------------------------------------------
-
+	/*wwxx
+	mAction是一个字符串，用来指明要执行的动作是什么。
+    在Intent类中定义了大量Action，例如:ACTION_VIEW、ACTION_UPGRADE_SETUP、ACTION_PACKAGE_ADDED这些Action的作用与具体的功能模块相关,表达执行动作的意图。*/
     private String mAction;
+    /*
+	mData存储要传递的数据,类型是Uri。
+	Uri是统一资源标识符(Uniform Resource Identifier)的缩写。
+	Uri最初用于标识 Web中的各种资源，如HTML文档、图片、文件等。
+	大家更熟悉的URL (Uniform Resource Locator）实际是Uri的一个子集。
+    */
     private Uri mData;
+    /*
+	mType是 MIME 格式的字符串，表示数据类型。
+	MIME是多功能 Internet 邮件扩充服务(Multipurpose Internet Mail Extensions）的缩写，最早应用于电子邮件系统，后来应用到浏览器。
+	例如:“text/plain”、“application/x-gzip”、“video/3gpp”。
+	通常数据类型并不需要指定，如果设置这个字段，可以加快 Intent的匹配速度。
+    */
     private String mType;
     private String mPackage;
+
+    /*
+	mComponent用于指定接收Intent的目标组件的名称。
+	mComponent的类型是ComponentName,它包含了两个字符串: mPackage和 mClass，前者用于指定包名，后者用于指定类名。
+	Intent 中如果定义了mComponent，该 Intent 将直接发送到指定的组件，而不再通过其他属性组合查找。
+	因此，对这个字段赋值以后,Intent的其他字段都是可选的。
+    */
     private ComponentName mComponent;
+
+    /*
+	mFlags:这是一个很重要的字段。
+	Intent 中定义的很多标志值，使用它们会对最终的执行结果产生影响，需要小心使用。
+    */
     private int mFlags;
+
+    /*
+	mCategories(类别)，被执行动作的附加信息。
+	例如 LAUNCHER_CATEGORY 表示Intent的接受者应该在 Launcher中作为顶级应用出现;
+	而ALTERNATIVE_CATEGORY表示当前的Intent是一系列的可选动作中的一个，这些动作可以在同一块数据上执行。
+    */
     private ArraySet<String> mCategories;
+
+    /*
+	mExtras表示所有附加信息的集合。mExtras的数据类型是 Bundle,我们可以把任何在
+	mData字段中无法表示的数据保存在 mExtras中。
+    */
     private Bundle mExtras;
     private Rect mSourceBounds;
     private Intent mSelector;
     private ClipData mClipData;
+
+	/*
+	intent分为implicit和 explicit两种, explicit Intent通过设置了成员变量mComponent明确指定了要启动的组件。
+	而 Implicit Intent没有明确指定要启动组件，这样系统需要通过查找Intent Filter来筛选合适的组件。
+	筛选响应 intent的组件，需要进行3项匹配: action、type和 category。如果在Intent中指定了这3项,
+	在定义响应该Intent组件的<intent-filter>标签中同样要指定这3项来进行匹配。
+	*/
 
     // ---------------------------------------------------------------------
 
