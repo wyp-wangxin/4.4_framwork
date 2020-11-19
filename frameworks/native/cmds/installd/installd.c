@@ -530,6 +530,17 @@ static void drop_privileges() {
     }
 }
 
+/*
+在安装Android应用的过程中，执行 apk文件优化、创建、删除应用的数据文件等操作实际上是通过installd守护进程完成的。
+为什么不在 PackageManagerService中完成呢?原因很简单，PackageManagerService所在的进程SystemServer属于system用户组，没有root权限。
+而最后在文件系统中更改目录和复制删除文件都需要root权限才能完成，
+
+因此，Android用installd进程来完成最后一步的工作。但是,我们通过adb shell查看installd会发现它的用户是install,也不是root,如下所示:
+root      3814  1     1004   224   ffffffff f7619480 S /system/bin/installd
+
+这是什么回事呢?为什么它的身份不是root 也能完成安装呢，这个问题后面会详细分析。下面让我们先看看installd的初始化过程。
+*/
+
 int main(const int argc, const char *argv[]) {
     char buf[BUFFER_MAX];
     struct sockaddr addr;
@@ -538,18 +549,18 @@ int main(const int argc, const char *argv[]) {
 
     ALOGI("installd firing up\n");
 
-    if (initialize_globals() < 0) {
+    if (initialize_globals() < 0) {//初始化全局变量
         ALOGE("Could not initialize globals; exiting.\n");
         exit(1);
     }
 
-    if (initialize_directories() < 0) {
+    if (initialize_directories() < 0) { //初始化系统目录
         ALOGE("Could not create directories; exiting.\n");
         exit(1);
     }
 
-    drop_privileges();
-
+    drop_privileges();//更改installd进程的权限
+    //从环境变量 ANDROID_SOCKET_installd 中获取用于监听的本地 socket,在介绍init时已经介绍过守护进程是如何创建socket的
     lsocket = android_get_control_socket(SOCKET_PATH);
     if (lsocket < 0) {
         ALOGE("Failed to get socket from environment: %s\n", strerror(errno));
@@ -560,10 +571,10 @@ int main(const int argc, const char *argv[]) {
         exit(1);
     }
     fcntl(lsocket, F_SETFD, FD_CLOEXEC);
-
+    //立即处理新连接，这样installd一次只能处理一个请求
     for (;;) {
         alen = sizeof(addr);
-        s = accept(lsocket, &addr, &alen);
+        s = accept(lsocket, &addr, &alen);//接收连接
         if (s < 0) {
             ALOGE("Accept failed: %s\n", strerror(errno));
             continue;
@@ -571,26 +582,35 @@ int main(const int argc, const char *argv[]) {
         fcntl(s, F_SETFD, FD_CLOEXEC);
 
         ALOGI("new connection\n");
+        //立即处理新连接,这样installd一次只能处理一个请求
         for (;;) {
             unsigned short count;
-            if (readx(s, &count, sizeof(count))) {
+            if (readx(s, &count, sizeof(count))) {//读取命令的长度
                 ALOGE("failed to read size\n");
                 break;
             }
-            if ((count < 1) || (count >= BUFFER_MAX)) {
+            if ((count < 1) || (count >= BUFFER_MAX)) {//如果命令长度错误则停止处理
                 ALOGE("invalid size %d\n", count);
                 break;
             }
-            if (readx(s, buf, count)) {
+            if (readx(s, buf, count)) {//读取命令
                 ALOGE("failed to read command\n");
                 break;
             }
             buf[count] = 0;
-            if (execute(s, buf)) break;
+            if (execute(s, buf)) break;//执行命令
         }
         ALOGI("closing connection\n");
-        close(s);
+        close(s);//关闭连接
     }
 
     return 0;
-}
+}/*
+installd 的架构比较简单，就是监听一个本地的socket，这个socket通过在 init.rc文件中指定服务属性的方式创建(这一点在介绍Init进程时介绍过)。
+如果有socket连接进来，则通过socket读取命令字符串，然后执行命令。
+
+在main()函数中，installd通过调用initialize_globals()和 initialize_directories()来完成初始化的工作。
+initialize_globals()函数将设置安装应用需要用到的目录名，而 initialize_directories()则创建所有用户的安装目录。
+
+main()函数中调用的 drop_privileges()函数比较有意思，下面详细介绍它的作用。
+*/

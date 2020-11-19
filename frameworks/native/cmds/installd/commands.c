@@ -34,38 +34,38 @@ int install(const char *pkgname, uid_t uid, gid_t gid, const char *seinfo)
     char libsymlink[PKG_PATH_MAX];
     char applibdir[PKG_PATH_MAX];
     struct stat libStat;
-
+    //检查 uid和gid
     if ((uid < AID_SYSTEM) || (gid < AID_SYSTEM)) {
         ALOGE("invalid uid/gid: %d %d\n", uid, gid);
         return -1;
     }
 
-    if (create_pkg_path(pkgdir, pkgname, PKG_DIR_POSTFIX, 0)) {
+    if (create_pkg_path(pkgdir, pkgname, PKG_DIR_POSTFIX, 0)) {// 得到应用的数据目录名/data/data/<包名>
         ALOGE("cannot create package path\n");
         return -1;
     }
 
-    if (create_pkg_path(libsymlink, pkgname, PKG_LIB_POSTFIX, 0)) {
+    if (create_pkg_path(libsymlink, pkgname, PKG_LIB_POSTFIX, 0)) {// 得到应用的动态库目录名/data/data/<包名>/lib
         ALOGE("cannot create package lib symlink origin path\n");
         return -1;
     }
 
-    if (create_pkg_path_in_dir(applibdir, &android_app_lib_dir, pkgname, PKG_DIR_POSTFIX)) {
+    if (create_pkg_path_in_dir(applibdir, &android_app_lib_dir, pkgname, PKG_DIR_POSTFIX)) {// 得到/app-lib目录下的符号链接的名称/data/app-lib/<包名>
         ALOGE("cannot create package lib symlink dest path\n");
         return -1;
     }
 
-    if (mkdir(pkgdir, 0751) < 0) {
+    if (mkdir(pkgdir, 0751) < 0) {//创建应用的数据目录
         ALOGE("cannot create dir '%s': %s\n", pkgdir, strerror(errno));
         return -1;
     }
-    if (chmod(pkgdir, 0751) < 0) {
+    if (chmod(pkgdir, 0751) < 0) {//修改目录权限
         ALOGE("cannot chmod dir '%s': %s\n", pkgdir, strerror(errno));
         unlink(pkgdir);
         return -1;
     }
 
-    if (lstat(libsymlink, &libStat) < 0) {
+    if (lstat(libsymlink, &libStat) < 0) {//检查符号链接是否已经存在
         if (errno != ENOENT) {
             ALOGE("couldn't stat lib dir: %s\n", strerror(errno));
             return -1;
@@ -83,21 +83,21 @@ int install(const char *pkgname, uid_t uid, gid_t gid, const char *seinfo)
             }
         }
     }
-
+    //创建符号链接
     if (symlink(applibdir, libsymlink) < 0) {
         ALOGE("couldn't symlink directory '%s' -> '%s': %s\n", libsymlink, applibdir,
                 strerror(errno));
         unlink(pkgdir);
         return -1;
     }
-
+    //为目录设置SELinux的安全上下文
     if (selinux_android_setfilecon2(pkgdir, pkgname, seinfo, uid) < 0) {
         ALOGE("cannot setfilecon dir '%s': %s\n", pkgdir, strerror(errno));
         unlink(libsymlink);
         unlink(pkgdir);
         return -errno;
     }
-
+    //修改目录的gid和uid
     if (chown(pkgdir, uid, gid) < 0) {
         ALOGE("cannot chown dir '%s': %s\n", pkgdir, strerror(errno));
         unlink(libsymlink);
@@ -106,7 +106,10 @@ int install(const char *pkgname, uid_t uid, gid_t gid, const char *seinfo)
     }
 
     return 0;
-}
+}/*wwxx
+
+install()命令创建了应用的数据目录，并把目录的uid和 gid改成参数传递的值。同时在/data/app-lib目录下创建了一个符号链接，指向应用的本地动态库的安装路径。
+*/
 
 int uninstall(const char *pkgname, userid_t userid)
 {

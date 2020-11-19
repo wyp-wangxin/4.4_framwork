@@ -305,6 +305,13 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     // Used for privilege escalation. MUST NOT BE CALLED WITH mPackages
     // LOCK HELD.  Can be called with mInstallLock held.
+    /*wwxx
+    PackageManagerService的两个重要成员变量 mInstallService(5.0 才有) 和 mInstaller与应用安装有密切关系。
+    mInstallService是类PackageInstallerService的实例对象，一个应用的安装过程比较长，Android 5.0中新增加了PackageInstallerService来管理应用的安装过程。
+    另一个变量mInstaller是类Installer 的实例对象，Installer类比较简单，它也有一个名为 mInstaller 的成员变量，这个成员变量的类是 InstallerConnection，
+    而 InstallerConnection中存在着和 Deamon进程 Installd 通信的Socket命通道。
+    实际上系统中进行apk文件格式转换、建立数据目录等工作最后是由Installd进程来完成的
+    */
     final Installer mInstaller;
 
     final File mAppInstallDir;
@@ -603,7 +610,14 @@ public class PackageManagerService extends IPackageManager.Stub {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
             }
         }
-        
+        /*wwxx
+            INIT_COPY 消息的处理中将绑定DefaultContainerService，因为这是一个异步的过程，要等待绑定的结果通过onServiceConnected()返回，
+            所以，这里将安装的参数信息放到了mPendingInstal列表中。
+            如果这个Service 以前就绑定好了，现在不需要再绑定，安装信息也会先放到mPendingInstalls 中。
+            如果有多个安装请求同时到达，这里通过mPendingInstalls 列表可以对它们进行排队。
+            如果列表中只有一项，说明没有更多的安装请求，因此，这种情况下会立即发出MCS BOUND 消息，进入下一步的处理。
+            而onServiceConnected()方法的处理同样是发出MCS_BOUND 消息，如下所示:
+        */
         void doHandleMessage(Message msg) {
             switch (msg.what) {
                 case INIT_COPY: {
@@ -616,20 +630,21 @@ public class PackageManagerService extends IPackageManager.Stub {
                     if (!mBound) {
                         // If this is the only one pending we might
                         // have to bind to the service again.
+                        //绑定DefaultcontainerService服务
                         if (!connectToService()) {
                             Slog.e(TAG, "Failed to bind to media container service");
                             params.serviceError();
                             return;
-                        } else {
+                        } else {//连接成功，把安装信息保存到 mPendingInstalls ，待收到连接的返回消息后再继续安装
                             // Once we bind to the service, the first
                             // pending request will be processed.
                             mPendingInstalls.add(idx, params);
                         }
                     } else {
-                        mPendingInstalls.add(idx, params);
+                        mPendingInstalls.add(idx, params);//插入安装信息
                         // Already bound to the service. Just make
                         // sure we trigger off processing the first request.
-                        if (idx == 0) {
+                        if (idx == 0) {//如果mPendingInstalls中只有一项，立刻发MCS_ BOUND消息
                             mHandler.sendEmptyMessage(MCS_BOUND);
                         }
                     }
@@ -640,28 +655,28 @@ public class PackageManagerService extends IPackageManager.Stub {
                     if (msg.obj != null) {
                         mContainerService = (IMediaContainerService) msg.obj;
                     }
-                    if (mContainerService == null) {
+                    if (mContainerService == null) {//如果 DefaultContainerservice没有连接成功
                         // Something seriously wrong. Bail out
                         Slog.e(TAG, "Cannot bind to media container service");
                         for (HandlerParams params : mPendingInstalls) {
                             // Indicate service bind error
-                            params.serviceError();
+                            params.serviceError();//通过参数中带的回调接口通知调用者出错了
                         }
                         mPendingInstalls.clear();
                     } else if (mPendingInstalls.size() > 0) {
                         HandlerParams params = mPendingInstalls.get(0);
                         if (params != null) {
-                            if (params.startCopy()) {
+                            if (params.startCopy()) {//执行安装
                                 // We are done...  look for more work or to
                                 // go idle.
                                 if (DEBUG_SD_INSTALL) Log.i(TAG,
                                         "Checking for more work or unbind...");
                                 // Delete pending install
                                 if (mPendingInstalls.size() > 0) {
-                                    mPendingInstalls.remove(0);
+                                    mPendingInstalls.remove(0);//工作完成,删除第—项
                                 }
                                 if (mPendingInstalls.size() == 0) {
-                                    if (mBound) {
+                                    if (mBound) {//如果没有安装信息了,发送延时10秒的MCS UNBIND消息
                                         if (DEBUG_SD_INSTALL) Log.i(TAG,
                                                 "Posting delayed MCS_UNBIND");
                                         removeMessages(MCS_UNBIND);
@@ -670,7 +685,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                         // continual thrashing.
                                         sendMessageDelayed(ubmsg, 10000);
                                     }
-                                } else {
+                                } else {// mPendingInstalls中还有安装信息，发送 MCS BOUND消息
                                     // There are more pending requests in queue.
                                     // Just post MCS_BOUND message to trigger processing
                                     // of next pending install.
@@ -684,6 +699,14 @@ public class PackageManagerService extends IPackageManager.Stub {
                         // Should never happen ideally.
                         Slog.w(TAG, "Empty queue");
                     }
+                    /*wwxx
+                        MCS_BOUND消息的处理过程就是调用InstallParams类的startCopy()方法来执行安装。
+                        只要mPendingInstalls中还有安装信息，就会重复发送MCS_BOUND消息，直到所有应用都安装完毕，然后发送一个延时10秒的MCS_UNBIND消息。
+
+                        消息MCS_UNBIND的处理很简单,收到消息后如果发现mPendingInstalls列表中又有数据了则发送MCS BOUND消息继续安装。
+                        否则断开和 DefaultContainerService 的连接，安装过程就此结束。
+                        下面继续分析startCopy()方法的处理过程,代码如下:
+                    */
                     break;
                 }
                 case MCS_RECONNECT: {
@@ -794,6 +817,10 @@ public class PackageManagerService extends IPackageManager.Stub {
                     startCleaningPackages();
                 } break;
                 case POST_INSTALL: {
+                    /*wwxx
+                        POST INSTALL消息的处理主要就是在发送广播，应用安装完成后要通知系统中其他的应用开始处理，例如，Launcher中需要增加应用的图标等。
+                        发完广播安装也就结束了。最后通过参数中的回调接口通知调用者安装的结果。
+                    */
                     if (DEBUG_INSTALL) Log.v(TAG, "Handling post-install for " + msg.arg1);
                     PostInstallData data = mRunningInstalls.get(msg.arg1);
                     mRunningInstalls.delete(msg.arg1);
@@ -1036,7 +1063,12 @@ public class PackageManagerService extends IPackageManager.Stub {
             mHandler.sendEmptyMessageDelayed(WRITE_PACKAGE_RESTRICTIONS, WRITE_SETTINGS_DELAY);
         }
     }
+    /*wwxx
 
+    main()方法比较简单，只是创建了PackageManagerService对象并在ServiceManager 中注册。
+    PackageManagerService类的 Binder 服务框架是通过AIDL 生成的，我们就不多解释了，下面看看它的构造方法。
+
+    */
     public static final IPackageManager main(Context context, Installer installer,
             boolean factoryTest, boolean onlyCore) {
         PackageManagerService m = new PackageManagerService(context, installer,
@@ -1066,7 +1098,17 @@ public class PackageManagerService extends IPackageManager.Stub {
         res[count] = str.substring(lastI, str.length());
         return res;
     }
+/*
+wwxx
+PackageManagerService 的构造方法主要完成两件事:
+第一件事是把系统中的apk 文件和jar包从dex格式转换成ART的oat格式。
+第二件事扫描系统中所有安装的应用，把它们的信息提取出来。
 
+这个构造方法很长，因为系统启动时要处理很多目录和文件。理解这个过程会加深我们对Android系统的了解。
+因为处理过程中涉及这些目录，文件是我们平常经常接触的，但是，对于它们生成和移除的时间点和过程可能不是很清楚。
+为了让读者能完整地了解整个过程，笔者在这里保留了构造方法的所有代码（除了log)，而且做了详细的注释。
+这样整个方法大概有5、6页之多，如果读者能耐心读完注释和代码，一定会有收获:
+*/
     public PackageManagerService(Context context, Installer installer,
             boolean factoryTest, boolean onlyCore) {
         EventLog.writeEvent(EventLogTags.BOOT_PROGRESS_PMS_START,
@@ -1132,24 +1174,24 @@ public class PackageManagerService extends IPackageManager.Stub {
             Watchdog.getInstance().addThread(mHandler, mHandlerThread.getName(),
                     WATCHDOG_TIMEOUT);
 
-            File dataDir = Environment.getDataDirectory();
-            mAppDataDir = new File(dataDir, "data");
-            mAppInstallDir = new File(dataDir, "app");
-            mAppLibInstallDir = new File(dataDir, "app-lib");
+            File dataDir = Environment.getDataDirectory();//为/data目录下的子目录生成文件对象
+            mAppDataDir = new File(dataDir, "data");  //存放应用数据的目录
+            mAppInstallDir = new File(dataDir, "app");//存放安装的应用
+            mAppLibInstallDir = new File(dataDir, "app-lib");//存放应用自带的native库
             mAsecInternalPath = new File(dataDir, "app-asec").getPath();
-            mUserAppDataDir = new File(dataDir, "user");
-            mDrmAppPrivateInstallDir = new File(dataDir, "app-private");
+            mUserAppDataDir = new File(dataDir, "user");//存放用户的数据文件
+            mDrmAppPrivateInstallDir = new File(dataDir, "app-private");//存放drm保护的应用
 
             sUserManager = new UserManagerService(context, this,
-                    mInstallLock, mPackages);
+                    mInstallLock, mPackages);//创建用户管理服务UserManagerService
 
             readPermissions();
-
+            //打开SELinux 的Policy文件/security/mac permissions.xml和/etc/security/mac permissions. xml
             mFoundPolicyFile = SELinuxMMAC.readInstallPolicy();
-
+            //读取文件packages.xml的内容，解析后插到mSettings 的mPackages等变量中
             mRestoredSettings = mSettings.readLPw(this, sUserManager.getUsers(false),
                     mSdkVersion, mOnlyCore);
-
+            //设置模块来代替framework-res.apk中的缺省ResolverActivity
             String customResolverActivity = Resources.getSystem().getString(
                     R.string.config_customResolverActivity);
             if (TextUtils.isEmpty(customResolverActivity)) {
@@ -1159,19 +1201,20 @@ public class PackageManagerService extends IPackageManager.Stub {
                         customResolverActivity);
             }
 
-            long startTime = SystemClock.uptimeMillis();
+            long startTime = SystemClock.uptimeMillis();//记录开始扫描的时间
 
             EventLog.writeEvent(EventLogTags.BOOT_PROGRESS_PMS_SYSTEM_SCAN_START,
                     startTime);
 
             // Set flag to monitor and not change apk file paths when
             // scanning install directories.
+            //设置扫描模式
             int scanMode = SCAN_MONITOR | SCAN_NO_PATHS | SCAN_DEFER_DEX | SCAN_BOOTING;
             if (mNoDexOpt) {
                 Slog.w(TAG, "Running ENG build: no pre-dexopt!");
                 scanMode |= SCAN_NO_DEX;
             }
-
+            //定义已经优化的文件集合，已经优化过的文件或不需要优化的文件将加到这个集合中
             final HashSet<String> alreadyDexOpted = new HashSet<String>();
 
             /**
@@ -1179,6 +1222,7 @@ public class PackageManagerService extends IPackageManager.Stub {
              * list of process files because dexopt will have been run
              * if necessary during zygote startup.
              */
+            //把环境变量BOOTCLASSPATH中定义的包加入到已优化集合alreadyDex0pted
             String bootClassPath = System.getProperty("java.boot.class.path");
             if (bootClassPath != null) {
                 String[] paths = splitString(bootClassPath, ':');
@@ -1362,16 +1406,18 @@ public class PackageManagerService extends IPackageManager.Stub {
                             removePackageLI(ps, true);
                         }
 
-                        continue;
+                        continue;//忽略在扫描列表mPackages中的文件
                     }
-
+                    //运行到这里说明ps表示的应用不在扫描列表mPackages中，也就是在系统中不存在
                     if (!mSettings.isDisabledSystemPackageLPr(ps.name)) {
+                        //如果这个文件也不属于<update-package>标识的应用，说明这个应用是残留在packages.xm1中的，可能还剩下数据目录，因此要删掉
                         psit.remove();
                         String msg = "System package " + ps.name
                                 + " no longer exists; wiping its data";
                         reportSettingsProblem(Log.WARN, msg);
-                        removeDataDirsLI(ps.name);
+                        removeDataDirsLI(ps.name);//删除数据目录
                     } else {
+                        //这个应用不在系统中,但是被标签<update-package>标识,加入到possiblyDeletedUpdatedSystemApps中
                         final PackageSetting disabledPs = mSettings.getDisabledSystemPkgLPr(ps.name);
                         if (disabledPs.codePath == null || !disabledPs.codePath.exists()) {
                             possiblyDeletedUpdatedSystemApps.add(ps.name);
@@ -1381,6 +1427,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
 
             //look for any incomplete package installations
+            //扫描并删除未安装成功的apk包
             ArrayList<PackageSetting> deletePkgsList = mSettings.getListOfIncompleteInstallPackagesLPr();
             //clean up list
             for(int i = 0; i < deletePkgsList.size(); i++) {
@@ -1388,22 +1435,25 @@ public class PackageManagerService extends IPackageManager.Stub {
                 cleanupInstallFailedPackage(deletePkgsList.get(i));
             }
             //delete tmp files
-            deleteTempPackageFiles();
+            deleteTempPackageFiles();//删除临时文件
 
             // Remove any shared userIDs that have no associated packages
+            //把msettings中没有关联任何应用的SharedUserSetting对象删除掉
             mSettings.pruneSharedUsersLPw();
-
+            //开始处理非系统应用
             if (!mOnlyCore) {
                 EventLog.writeEvent(EventLogTags.BOOT_PROGRESS_PMS_DATA_SCAN_START,
                         SystemClock.uptimeMillis());
                 mAppInstallObserver = new AppDirObserver(
                     mAppInstallDir.getPath(), OBSERVER_EVENTS, false, false);
                 mAppInstallObserver.startWatching();
+                //扫描/data/app目录,收集目录中文件的信息
                 scanDirLI(mAppInstallDir, 0, scanMode, 0);
     
                 mDrmAppInstallObserver = new AppDirObserver(
                     mDrmAppPrivateInstallDir.getPath(), OBSERVER_EVENTS, false, false);
                 mDrmAppInstallObserver.startWatching();
+                //扫描/data/app-private自录，收集目录中文件的信息
                 scanDirLI(mDrmAppPrivateInstallDir, PackageParser.PARSE_FORWARD_LOCK,
                         scanMode, 0);
 
@@ -1413,16 +1463,19 @@ public class PackageManagerService extends IPackageManager.Stub {
                  * previously-updated app, remove them completely.
                  * Otherwise, just revoke their system-level permissions.
                  */
+                //放在 possiblyDeletedUpdatedsystemApps 中的应用是在packages.xml文件被标记成了带升级的系统应用，但是文件却不存在了，因此，这里检查在用户目录下的升级文件是否还存在，然后进行处理
                 for (String deletedAppName : possiblyDeletedUpdatedSystemApps) {
                     PackageParser.Package deletedPkg = mPackages.get(deletedAppName);
-                    mSettings.removeDisabledSystemPackageLPw(deletedAppName);
+                    mSettings.removeDisabledSystemPackageLPw(deletedAppName);//从 mSettings 的mDisabledSysPackages变量中移除此应用
 
                     String msg;
                     if (deletedPkg == null) {
+                        // possiblyDeletedUpdatedSystemApps 中的应用在用户安装目录下也没有文件肯定是残留的应用信息，则把它的数据自录也删除掉
                         msg = "Updated system package " + deletedAppName
                                 + " no longer exists; wiping its data";
-                        removeDataDirsLI(deletedAppName);
+                        removeDataDirsLI(deletedAppName);//删除应用的数据目录
                     } else {
+                        //如果在用户空间找到了文件,说明系统目录下的文件可能被删掉了,因此，把应用的系统属性去掉,以普通应用的方式运行
                         msg = "Updated system app + " + deletedAppName
                                 + " no longer present; removing system privileges for "
                                 + deletedAppName;
@@ -1432,7 +1485,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                         PackageSetting deletedPs = mSettings.mPackages.get(deletedAppName);
                         deletedPs.pkgFlags &= ~ApplicationInfo.FLAG_SYSTEM;
                     }
-                    reportSettingsProblem(Log.WARN, msg);
+                    reportSettingsProblem(Log.WARN, msg);//报告系统发现了不一致的情况
                 }
             } else {
                 mAppInstallObserver = null;
@@ -1441,7 +1494,7 @@ public class PackageManagerService extends IPackageManager.Stub {
 
             // Now that we know all of the shared libraries, update all clients to have
             // the correct library paths.
-            updateAllSharedLibrariesLPw();
+            updateAllSharedLibrariesLPw();//更新所有应用的动态库路径
 
             EventLog.writeEvent(EventLogTags.BOOT_PROGRESS_PMS_SCAN_END,
                     SystemClock.uptimeMillis());
@@ -1482,12 +1535,17 @@ public class PackageManagerService extends IPackageManager.Stub {
             // Now after opening every single application zip, make sure they
             // are all flushed.  Not really needed, but keeps things nice and
             // tidy.
-            Runtime.getRuntime().gc();
+            Runtime.getRuntime().gc();//启动内存垃圾回收
 
             mRequiredVerifierPackage = getRequiredVerifierLPr();
         } // synchronized (mPackages)
         } // synchronized (mInstallLock)
     }
+    /*wwxx
+    PackageManagerService构造方法的执行过程就是先读取保存在packages.xml文件中的上次扫描的结果，保存在mSettings的成员变量中，然后扫描设备中几个应用目录下的应用文件，
+    并把扫描的结果保存在PackageManagerService的成员变量mPackages中，通过对比上次扫描的结果来检查本次扫描到的应用中是否有被升级包覆盖的系统应用，
+    如果有，则从 mPackages 中去除掉。这样 mPackages 的记录和mSettings的记录就一致了，最后，将本次扫描的结果写回packages.xml文件中。
+    */
 
     public boolean isFirstBoot() {
         return !mRestoredSettings;
@@ -1563,7 +1621,14 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
         mSettings.removePackageLPw(ps.name);
     }
-
+    /*wwxx
+    readPermissions()方法的工作就是读取指定目录下的xml文件，然后调用readPermissionsFromXml()方法来处理文件。
+    目录下存放的是和 permission相关的文件，其中 platfrom.xml文件的内容和其他文件的内容不相同。
+    例如/system/etc/permission目录下android.hardware.audio.low_latency.xml文件的内容是:
+    <permissions>
+        <feature name="android.hardware.audio.low_latency"/>
+    </ permissions>
+    */
     void readPermissions() {
         // Read permissions from .../etc/permission directory.
         File libraryDir = new File(Environment.getRootDirectory(), "etc/permissions");
@@ -1599,6 +1664,18 @@ public class PackageManagerService extends IPackageManager.Stub {
         final File permFile = new File(Environment.getRootDirectory(),
                 "etc/permissions/platform.xml");
         readPermissionsFromXml(permFile);
+
+        /*wwxx
+            readPermissionsFromXml 方法主要的工作就是解析上面的标签，如果熟悉XML解析的套路，
+            看懂这个方法就很简单了。这个方法我们就不分析了，但是最后解析的结果需要说明清楚。
+            (1)标签<permission>中的属性name字符串和<group>标签中的gid都放到了变量mSettings 的mPermissions中,而所有gid也被收集起来放到了PackageManagerService 的成员变量mGlobalGids中。
+            (2)标签<assign permission>的内容放到了PackageManagerService 的成员变量mSystemPermission中。
+            (3）标签<library>的动态库字符串放到了PackageManagerService 的成员变量mSharedLibraries 中。
+            (4）其他xml文件的标签<feature>定义的字符串放到了PackageManagerService的成员变量mAvailableFeatures 中。
+            Android的很多功能是通过所谓的permission字符串来保护的,应用中如果需要使用某项受保护的功能，
+            需要在它的AndroidManifest.xml文件中显示的声明该功能对应的permission字符串。
+            但是，有些功能只能由特定用户组的应用使用，在platfrom.xml 文件中定义的就是这种限制规则。
+        */
     }
 
     private void readPermissionsFromXml(File permFile) {
@@ -3488,7 +3565,10 @@ public class PackageManagerService extends IPackageManager.Stub {
 
         return finalList;
     }
+/*wwxx
+PackageManagerService 的构造方法中调用了scanDirLI()方法来扫描某个目录中 apk文件，scanDirLI方法的代码如下:
 
+*/
     private void scanDirLI(File dir, int flags, int scanMode, long currentTime) {
         String[] files = dir.list();
         if (files == null) {
@@ -3508,6 +3588,12 @@ public class PackageManagerService extends IPackageManager.Stub {
                 // Ignore entries which are not apk's
                 continue;
             }
+            /*
+            wwxx
+            scanDirLI()只扫描指定目录下的文件，不会去扫描子目录,同时只扫描后缀为“apk”的文件.scanDirLI()方法调用scanPackageLI()方法来继续扫描过程。
+            scanPackageLI()方法有两个实现，但是参数不一样，scanDirLI()中调用的是参数为File对象的实现，作用是把 File对象解析成PackageParser.Package对象，
+            这个结果会传递给scanPackageLI()方法的第二个实现，用来创建PackageManagerService中和应用相关的各种内部数据结构。
+            */
             PackageParser.Package pkg = scanPackageLI(file,
                     flags|PackageParser.PARSE_MUST_BE_APK, scanMode, currentTime, null);
             // Don't mess around with apps in system partition.
@@ -3582,6 +3668,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         String scanPath = scanFile.getPath();
         if (DEBUG_INSTALL) Slog.d(TAG, "Parsing: " + scanPath);
         parseFlags |= mDefParseFlags;
+        //(1) scanPackageLI()方法创建了一个文件解析器PackageParser对象，然后调用它的parsePackage方法来解析参数中传递的文件对象scanFile。
         PackageParser pp = new PackageParser(scanPath);
         pp.setSeparateProcesses(mSeparateProcesses);
         pp.setOnlyCoreApps(mOnlyCore);
@@ -3592,7 +3679,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             mLastScanError = pp.getParseError();
             return null;
         }
-
+        //(2）处理更改了包名的应用。前面介绍了这种情况，这里是在检查应用是否属于<renamed-package>标签标记的改了包名的应用，如果是，则使用原始的包的信息
         PackageSetting ps = null;
         PackageSetting updatedPkg;
         // reader
@@ -3611,17 +3698,19 @@ public class PackageManagerService extends IPackageManager.Stub {
             // Check to see if this package could be hiding/updating a system
             // package.  Must look for it either under the original or real
             // package name depending on our state.
+            //(3）处理安装了升级包的系统应用:
+            //检查应用是否存在升级包
             updatedPkg = mSettings.getDisabledSystemPkgLPr(ps != null ? ps.name : pkg.packageName);
             if (DEBUG_INSTALL && updatedPkg != null) Slog.d(TAG, "updatedPkg = " + updatedPkg);
         }
         // First check if this is a system package that may involve an update
-        if (updatedPkg != null && (parseFlags&PackageParser.PARSE_IS_SYSTEM) != 0) {
-            if (ps != null && !ps.codePath.equals(scanFile)) {
+        if (updatedPkg != null && (parseFlags&PackageParser.PARSE_IS_SYSTEM) != 0) {//如果扫描的是系统应用并且有升级包
+            if (ps != null && !ps.codePath.equals(scanFile)) {//如果包名和上次扫描的结果(ps 中保存的）不相同了,根据版本号来决定如何处理
                 // The path has changed from what was last scanned...  check the
                 // version of the new path against what we have stored to determine
                 // what to do.
                 if (DEBUG_INSTALL) Slog.d(TAG, "Path changing from " + ps.codePath);
-                if (pkg.mVersionCode < ps.versionCode) {
+                if (pkg.mVersionCode < ps.versionCode) {//如果扫描文件的版本号低于升级包的版本,忽略这个文件
                     // The system package has been updated and the code path does not match
                     // Ignore entry. Skip it.
                     Log.i(TAG, "Package " + ps.name + " at " + scanFile
@@ -3643,7 +3732,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                     updatedPkg.pkg = pkg;
                     mLastScanError = PackageManager.INSTALL_FAILED_DUPLICATE_PACKAGE;
                     return null;
-                } else {
+                } else {//如果扫描文件的版本号高于升级包的版本，则把升级包删除掉
                     // The current app on the system partion is better than
                     // what we have updated to on the data partition; switch
                     // back to the system partition version.
@@ -3670,9 +3759,13 @@ public class PackageManagerService extends IPackageManager.Stub {
                     }
                 }
             }
-        }
+        }/*
+            这一段代码的作用是处理带有升级包的应用,关于<update-package>和带有升级包的系统应用前面介绍了。
+            这里是在对比系统应用的版本和升级包的版本，如果发现系统文件的版本比安装的升级包的版本还高，将删除掉升级包。
+            正常情况下当然不会出现这种情况，升级包安装时就不会容许,这只是在检查一种可能的错误情况。
+        */
 
-        if (updatedPkg != null) {
+        if (updatedPkg != null) {//如果升级包存在,把属性设为系统应用
             // An updated system app will not have the PARSE_IS_SYSTEM flag set
             // initially
             parseFlags |= PackageParser.PARSE_IS_SYSTEM;
@@ -3684,6 +3777,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         // Verify certificates against what was last scanned
+        //(4）扫描文件的签名:
         if (!collectCertificatesLI(pp, ps, pkg, scanFile, parseFlags)) {
             Slog.w(TAG, "Failed verifying certificates for package:" + pkg.packageName);
             return null;
@@ -3693,19 +3787,21 @@ public class PackageManagerService extends IPackageManager.Stub {
          * A new system app appeared, but we already had a non-system one of the
          * same name installed earlier.
          */
+        //(5)处理应用的包名有冲突的情况:
         boolean shouldHideSystemApp = false;
         if (updatedPkg == null && ps != null
-                && (parseFlags & PackageParser.PARSE_IS_SYSTEM_DIR) != 0 && !isSystemApp(ps)) {
+                && (parseFlags & PackageParser.PARSE_IS_SYSTEM_DIR) != 0 && !isSystemApp(ps)) {//如果扫描的文件是系统应用，但是也存在一个同名的普通应用
             /*
              * Check to make sure the signatures match first. If they don't,
              * wipe the installed application and its data.
              */
+
             if (compareSignatures(ps.signatures.mSignatures, pkg.mSignatures)
-                    != PackageManager.SIGNATURE_MATCH) {
+                    != PackageManager.SIGNATURE_MATCH) {//比较它们的签名,不相同就删除掉扫描到的系统应用
                 if (DEBUG_INSTALL) Slog.d(TAG, "Signature mismatch!");
                 deletePackageLI(pkg.packageName, null, true, null, null, 0, null, false);
                 ps = null;
-            } else {
+            } else {//如果扫描的系统应用和安装的应用签名相同，这比较它们的版本，如果安装的应用版本高.则构成了升级关系,把系统应用隐藏。否则删除掉安装的应用
                 /*
                  * If the newly-added system app is an older version than the
                  * already installed version, hide it. It will be scanned later
@@ -3736,7 +3832,8 @@ public class PackageManagerService extends IPackageManager.Stub {
         // are kept in different files. (except for app in either system or
         // vendor path).
         // TODO grab this value from PackageSettings
-        if ((parseFlags & PackageParser.PARSE_IS_SYSTEM_DIR) == 0) {
+        //(6）处理应用的代码路径和资源路径:
+        if ((parseFlags & PackageParser.PARSE_IS_SYSTEM_DIR) == 0) {//如果一个应用的代码路径和资源路径不相同，则加上 PARSE_PORWARD_LOCK标记,这类应用是forward locked类应用
             if (ps != null && !ps.codePath.equals(ps.resourcePath)) {
                 parseFlags |= PackageParser.PARSE_FORWARD_LOCK;
             }
@@ -3745,13 +3842,13 @@ public class PackageManagerService extends IPackageManager.Stub {
         String codePath = null;
         String resPath = null;
         if ((parseFlags & PackageParser.PARSE_FORWARD_LOCK) != 0) {
-            if (ps != null && ps.resourcePathString != null) {
+            if (ps != null && ps.resourcePathString != null) {//如果是forward locked类应用而且它们的资源路径不为null,单独设置它们的资源路径
                 resPath = ps.resourcePathString;
             } else {
                 // Should not happen at all. Just log an error.
                 Slog.e(TAG, "Resource path not set for pkg : " + pkg.packageName);
             }
-        } else {
+        } else {//如果是普通应用，设置它们的资源路径和代码路径一致
             resPath = pkg.mScanPath;
         }
 
@@ -3759,6 +3856,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         // Set application objects path explicitly.
         setApplicationInfoPaths(pkg, codePath, resPath);
         // Note that we invoke the following method only if we are about to unpack an application
+        //(7)调用参数为PackageParser.Package对象的scanPackageL方法:
         PackageParser.Package scannedPkg = scanPackageLI(pkg, parseFlags, scanMode
                 | SCAN_UPDATE_SIGNATURE, currentTime, user);
 
@@ -3767,8 +3865,10 @@ public class PackageManagerService extends IPackageManager.Stub {
          * data, hide the system app now and let the /data/app scan pick it up
          * again.
          */
+        //(8）结束:
         if (shouldHideSystemApp) {
             synchronized (mPackages) {
+                //如果扫描的应用带有升级包,把它们的关系保存到mSettings中
                 /*
                  * We have to grant systems permissions before we hide, because
                  * grantPermissions will assume the package update is trying to
@@ -3780,7 +3880,12 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         return scannedPkg;
-    }
+    }/*wwxx
+        scanPackageLI方法在解析出了apk文件的信息后，主要是通过对比上次启动的结果来检查系统中是否存在和扫描的文件相冲突的应用包存在，
+        如果有scanPackageLI)方法会设法纠正错误,保证系统启动后的一致性。
+        完成错误检查后,将进入到第二阶段,调用参数为PackageParser.Packa对象的scanPackageLI()方法来构建 PackageManagerService中的数据结构。
+        第二个scanPackageL方法只是调用了 scanPackageDirtyLI ()方法，这个scanPackageDirtyLI()方法的代码非常长，我们就不分析代码了，只对这个方法的处理流程和相关数据结构做一个总结，如函数处：
+    */
 
     private static void setApplicationInfoPaths(PackageParser.Package pkg, String destCodePath,
             String destResPath) {
@@ -6524,7 +6629,13 @@ public class PackageManagerService extends IPackageManager.Stub {
         private final boolean mIsRom;
         private final boolean mIsPrivileged;
     }
+/*
+installPackage
 
+整体而言，应用的安装过程大概可以分成两个阶段，第一阶段把需要安装的应用复制到/data/app目录下，第二阶段是对apk文件进行扫描优化，然后装载到内存中。下面我们详细分析这两个阶段。
+
+
+*/
     /* Called when a downloaded package installation has been confirmed by the user */
     public void installPackage(
             final Uri packageURI, final IPackageInstallObserver observer, final int flags) {
@@ -6552,11 +6663,12 @@ public class PackageManagerService extends IPackageManager.Stub {
     public void installPackageWithVerificationAndEncryption(Uri packageURI,
             IPackageInstallObserver observer, int flags, String installerPackageName,
             VerificationParams verificationParams, ContainerEncryptionParams encryptionParams) {
+        //检查调用进程的权限
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.INSTALL_PACKAGES,
                 null);
-
+        //检查调用进程的用户是否有权限安装应用
         final int uid = Binder.getCallingUid();
-        if (isUserRestricted(UserHandle.getUserId(uid), UserManager.DISALLOW_INSTALL_APPS)) {
+        if (isUserRestricted(UserHandle.getUserId(uid), UserManager.DISALLOW_INSTALL_APPS)) {//检查指定的用户是否被限制安装应用
             try {
                 observer.packageInstalled("", PackageManager.INSTALL_FAILED_USER_RESTRICTED);
             } catch (RemoteException re) {
@@ -6565,7 +6677,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         UserHandle user;
-        if ((flags&PackageManager.INSTALL_ALL_USERS) != 0) {
+        if ((flags&PackageManager.INSTALL_ALL_USERS) != 0) {//如果flags带有标记INSTALL_ALL_USERS，则给所有用户安装
             user = UserHandle.ALL;
         } else {
             user = new UserHandle(UserHandle.getUserId(uid));
@@ -6583,12 +6695,23 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         verificationParams.setInstallerUid(uid);
-
+        // 保存参数到 InstallParams 对象并发送消息
         final Message msg = mHandler.obtainMessage(INIT_COPY);
         msg.obj = new InstallParams(packageURI, observer, filteredFlags, installerPackageName,
                 verificationParams, encryptionParams, user);
         mHandler.sendMessage(msg);
-    }
+    }/*
+installPackageAsUser()方法首先检查调用进程是否有安装应用的权限,再检查调用进程所属的用户是否有权限安装应用，最后检查指定的用户是否被限制安装应用。
+如果参数 Flags 带有标记INSTALL ALL_USERS，则该应用将给系统中所有用户安装，否则只给指定的用户安装。
+
+安装应用的时间通常比较长，因此，不可能在一个函数中一气完成。方法中只是把调用的参数保存在 InstallParams对象中，然后发送INIT_COPY 消息。
+
+InstallParams是安装过程中主要的数据结构，InstallParams 从 HandlerParams类派生，用来记录安装应用的参数。
+从HandlerParams派生的还有类MoveParams 和MeasureParams,前者用于将应用移动到SD卡,后者用于方法getPackageSizeInfo中。
+InstallParams 中有一个成员变量 mArgs，类型是FileInstallArgs，用来执行apk文件的复制。
+
+下面继续分析INIT_COPY消息的处理，消息的处理在doHandleMessage()方法中。
+    */
 
     private void sendPackageAddedForUser(String packageName, PackageSetting pkgSetting, int userId) {
         Bundle extras = new Bundle(1);
@@ -7060,17 +7183,17 @@ public class PackageManagerService extends IPackageManager.Stub {
         // Queue up an async operation since the package installation may take a little while.
         mHandler.post(new Runnable() {
             public void run() {
-                mHandler.removeCallbacks(this);
+                mHandler.removeCallbacks(this);//防止重复调用
                  // Result object to be returned
                 PackageInstalledInfo res = new PackageInstalledInfo();
                 res.returnCode = currentStatus;
                 res.uid = -1;
                 res.pkg = null;
                 res.removedInfo = new PackageRemovedInfo();
-                if (res.returnCode == PackageManager.INSTALL_SUCCEEDED) {
+                if (res.returnCode == PackageManager.INSTALL_SUCCEEDED) {//如果应用安装成功了
                     args.doPreInstall(res.returnCode);
                     synchronized (mInstallLock) {
-                        installPackageLI(args, true, res);
+                        installPackageLI(args, true, res);//装载安装的应用
                     }
                     args.doPostInstall(res.returnCode, res.uid);
                 }
@@ -7118,7 +7241,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                     }
                 }
 
-                if (!doRestore) {
+                if (!doRestore) {//发送 POST_INSTALL消息
                     // No restore possible, or the Backup Manager was mysteriously not
                     // available -- just fire the post-install work request directly.
                     if (DEBUG_INSTALL) Log.v(TAG, "No restore - queue post-install for " + token);
@@ -7127,7 +7250,13 @@ public class PackageManagerService extends IPackageManager.Stub {
                 }
             }
         });
-    }
+    }/*wwxx
+    processPendingInstall()方法中 post了一个消息，这样安装过程将以异步的方式继续执行。
+    在post消息的处理中，首先调用installPackageLI()来装载应用，接下来的一大段代码都是在执行备份操作，备份是通过BackupManagerService来完成的，这里就不分析了。
+    备份完成后，通过发送POST_INSTALL 消息来继续处理。
+
+    我们先分析 installPackageLI()方法.
+    */
 
     private abstract class HandlerParams {
         private static final int MAX_RETRIES = 4;
@@ -7148,27 +7277,37 @@ public class PackageManagerService extends IPackageManager.Stub {
         UserHandle getUser() {
             return mUser;
         }
-
+        /*
+            startCopy)方法通过调用handleStartCopy)来完成安装过程。但是考虑到安装过程的不确定性,startCopy()主要的工作是进行错误处理，
+            如果捕获到handleStartCopy()中抛出的例外，startCopy()将发送消息MCS_RECONNECT。
+            在MCS_RECONNECT的处理中,将会重新绑定DefaultContainerService,如果绑定成功，安装过程就会重新开始，startCopy()也会被再次调用。
+            重试的次数将记录在变量mRetries 中，如果超过4次，安装将失败。
+            如果安装成功，startCopy()会调用handleReturnCode()来继续处理。在了解handleReturnCode()方法前，我们先分析 handleStartCopy()方法。
+        */
         final boolean startCopy() {
             boolean res;
             try {
                 if (DEBUG_INSTALL) Slog.i(TAG, "startCopy " + mUser + ": " + this);
 
-                if (++mRetries > MAX_RETRIES) {
+                if (++mRetries > MAX_RETRIES) {//如果重试超过4次，则退出。MAX RETRIES等于4。
                     Slog.w(TAG, "Failed to invoke remote methods on default container service. Giving up");
                     mHandler.sendEmptyMessage(MCS_GIVE_UP);
                     handleServiceError();
                     return false;
                 } else {
-                    handleStartCopy();
+                    handleStartCopy();//执行安装
                     res = true;
                 }
             } catch (RemoteException e) {
                 if (DEBUG_INSTALL) Slog.i(TAG, "Posting install MCS_RECONNECT");
-                mHandler.sendEmptyMessage(MCS_RECONNECT);
+                mHandler.sendEmptyMessage(MCS_RECONNECT);//安装出错了，发消息重新连接
                 res = false;
             }
             handleReturnCode();
+            /*wwxx
+                接下来是第二阶段的工作，把应用的格式转换成oat格式，为应用创建数据目录，最后把应用的信息装载进 PackageManagerService的数据结构中。
+                在前面的startCopy()方法中已经看到，最后它会调用handleReturnCode()方法.
+            */
             return res;
         }
 
@@ -7383,7 +7522,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             final boolean onInt = (flags & PackageManager.INSTALL_INTERNAL) != 0;
             PackageInfoLite pkgLite = null;
 
-            if (onInt && onSd) {
+            if (onInt && onSd) {//如果既有安装在内部的标志，又有安装在SD卡上的标志，设置错误后返回
                 // Check if both bits are set.
                 Slog.w(TAG, "Conflicting flags specified for installing on both internal and external");
                 ret = PackageManager.INSTALL_FAILED_INVALID_INSTALL_LOCATION;
@@ -7437,6 +7576,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                     if (packageFile != null) {
                         // Remote call to find out default install location
                         final String packageFilePath = packageFile.getAbsolutePath();
+                        //获取安装包包含有应用信息的PackageInfoLite对象
                         pkgLite = mContainerService.getMinimalPackageInfo(packageFilePath, flags,
                                 lowThreshold);
 
@@ -7527,7 +7667,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                  */
                 final int requiredUid = mRequiredVerifierPackage == null ? -1
                         : getPackageUid(mRequiredVerifierPackage, userIdentifier);
-                if (requiredUid != -1 && isVerificationEnabled(flags)) {
+                if (requiredUid != -1 && isVerificationEnabled(flags)) {//下面非常长的一段代码是在执行应用的校验，校验的方法是通过向带校验功能的组件发Intent来完成.
                     final Intent verification = new Intent(
                             Intent.ACTION_PACKAGE_NEEDS_VERIFICATION);
                     verification.setDataAndType(getPackageUri(), PACKAGE_MIME_TYPE);
@@ -7638,7 +7778,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                          */
                         mArgs = null;
                     }
-                } else {
+                } else {//如果无需校验，调用InstallArgs的copyApk方法继续处理
                     /*
                      * No package verification is enabled, so immediately start
                      * the remote call to initiate copy using temporary file.
@@ -7648,7 +7788,18 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
 
             mRet = ret;
-        }
+        }/*
+            handleStartCopy()方法先调用getMinimalPackageInfo()来确定安装位置是否还有足够的空间，
+            并在PackageInfoLite对象的recommendedInstallLocation变量中记录错误原因。
+            发现安装空间不够后，handleStartCopy()方法会调用installer 的 freecache()方法来释放一部分空间。
+
+            接下来 handleStartCopy()方法会调用 createInstallArgs()来创建. 
+            InstallArgs对象，在createInstallArgs()方法中，如果应用要求安装在SD 卡上，或者是一个 forward lock的应用，
+            则创建AsecInstallArgs对象，否则创建 FileInstallArgs对象。这样安装的流程将会分化，为了方便分析，下面主要分析FileInstallArgs这条路线。   
+
+            再接下来handleStartCopy()方法中很长的一段都在处理 apk 的校验，这个校验过程是通过发送Intent ACTION_PACKAGE_NEEDS_VERIFICATION给系统中所有接收该Intent 的应用来完成的。
+            如果无需校验，则直接调用InstallArgs对象的copyApk()方法.                   
+        */
 
         @Override
         void handleReturnCode() {
@@ -7656,6 +7807,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             // reconnects, it will try again to install. At that point, this
             // will succeed.
             if (mArgs != null) {
+                //wwxx handleReturnCode()只是调用了processPendingInstall()方法继续处理，这个方法的代码如下:
                 processPendingInstall(mArgs, mRet);
 
                 if (mTempPackage != null) {
@@ -7997,7 +8149,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             // Get a ParcelFileDescriptor to write to the output file
             File codeFile = new File(codeFileName);
             if (!created) {
-                try {
+                try {//在/data/app/下生成临时文件
                     codeFile.createNewFile();
                     // Set permissions
                     if (!setPermissions()) {
@@ -8058,7 +8210,11 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
 
             return ret;
-        }
+        }/*
+        copyApk()同样是调用DefaultContainerService的copyPackage ()将应用的文件复制到/data/app下。
+        如果应用中还有native的动态库，也会把包在 apk文件中的动态库的文件提取出来。
+        执行完copyApk()后，安装的第一阶段的工作就完成了，应用安装到了/data/app目录下。
+        */
 
         int doPreInstall(int status) {
             if (status != PackageManager.INSTALL_SUCCEEDED) {
@@ -9002,11 +9158,13 @@ public class PackageManagerService extends IPackageManager.Stub {
 
         if (DEBUG_INSTALL) Slog.d(TAG, "installPackageLI: path=" + tmpPackageFile);
         // Retrieve PackageSettings and parse package
+        // 创建apk文件的解析器
         int parseFlags = mDefParseFlags | PackageParser.PARSE_CHATTY
                 | (forwardLocked ? PackageParser.PARSE_FORWARD_LOCK : 0)
                 | (onSd ? PackageParser.PARSE_ON_SDCARD : 0);
         PackageParser pp = new PackageParser(tmpPackageFile.getPath());
         pp.setSeparateProcesses(mSeparateProcesses);
+        //解析apk文件
         final PackageParser.Package pkg = pp.parsePackage(tmpPackageFile,
                 null, mMetrics, parseFlags);
         if (pkg == null) {
@@ -9020,6 +9178,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                 return;
             }
         }
+        //收集应用的签名
         if (GET_CERTIFICATES && !pp.collectCertificates(pkg, parseFlags)) {
             res.returnCode = pp.getParseError();
             return;
@@ -9099,8 +9258,8 @@ public class PackageManagerService extends IPackageManager.Stub {
         pkg.applicationInfo.nativeLibraryDir = args.getNativeLibraryPath();
         if (replace) {
             replacePackageLI(pkg, parseFlags, scanMode, args.user,
-                    installerPackageName, res);
-        } else {
+                    installerPackageName, res);//如果安装的是升级包，调用replacePackageLI继续处理
+        } else {//如果是新应用,调用installNewPackageLI继续处理
             installNewPackageLI(pkg, parseFlags, scanMode | SCAN_DELETE_DATA_ON_FAILURES, args.user,
                     installerPackageName, res);
         }
@@ -9110,7 +9269,11 @@ public class PackageManagerService extends IPackageManager.Stub {
                 res.newUsers = ps.queryInstalledUsers(sUserManager.getUserIds(), true);
             }
         }
-    }
+    }/*wwxx
+        installPackageLI()方法首先解析了安装的应用文件，这个过程前面已经分析过了。
+        得到解析的结果后，主要是在判断新安装的应用是否和系统中已安装的应用构成升级关系，如果是，则调用replacePackageLI()继续处理，否则调用installNewPackageLI()处理。
+        这两个方法处理的过程和前面介绍的扫描应用的过程类似，这里就不继续分析了。         
+    */
 
     private static boolean isForwardLocked(PackageParser.Package pkg) {
         return (pkg.applicationInfo.flags & ApplicationInfo.FLAG_FORWARD_LOCK) != 0;

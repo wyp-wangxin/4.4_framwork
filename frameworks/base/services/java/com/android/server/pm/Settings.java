@@ -88,6 +88,16 @@ import libcore.io.IoUtils;
 
 /**
  * Holds information about dynamic settings.
+
+wwxx 
+
+在分析main()方法之前，我们先介绍Settings类，这个类用来保存和PackageMangerService相关的一些设置,它所保存的内容在解析应用时会用到。
+那么, Settings 中保存的值是从哪里来的?
+
+作用又是什么呢?
+
+我们先看看Settings类的构造方法，代码如下:
+
  */
 final class Settings {
     private static final String TAG = "PackageSettings";
@@ -192,22 +202,65 @@ final class Settings {
     Settings(Context context) {
         this(context, Environment.getDataDirectory());
     }
+/* wwxx
+Settings的构造方法会创建/data目录下的system目录，这个目录用来保存很多系统文件。主要的工作是创建了5个位于目录/data/system的File对象，分别是:
 
+packages.xml:记录系统中所有安装的应用信息，包括基本信息、签名和权限。
+
+packages-backup.xml: packages.xml文件的备份。
+
+packages-stopped.xml:记录系统中被强制停止运行的应用信息。系统在强制停止某个应用时，会将应用的信息记录到该文件中。
+
+packages-stopped-backup.xml: packages-stopped.xml文件的备份。
+
+packages.list:保存普通应用的数据目录和 uid等信息。
+
+
+这5个文件中 packages-backup.xml和 packages-stopped-backup.xml是备份文件。
+当Android对文件 packages.xml和 packages-stopped.xml写之前，会先把它们备份，如果写文件成功了，再备份文件删除掉。
+如果写的时候，系统出问题了，重启后再需要读取这两个文件时，如果发现备份文件存在，会使用备份文件的内容，因为原文件可能已经损坏了。
+
+packages.xml是 PackageManagerService 启动时需要用到的文件，先看看这个文件的内容:
+
+上面是文件的一个片段,通过标签<package>记录了一个应用的基本信息,签名和申明的权限标签<package>中的属性name表示应用的包名，codePath表示apk文件的位置;
+
+nativeLibraryPath表示应用的native库的存储路径; 
+
+flags是指应用的属性,如FLAG_SYSTEM,FLAG_PERSISTENT等;
+
+it表示应用安装的时间;
+
+ut表示应用最后一次修改的时间; 
+version表示应用的版本号;
+userId表示应用所属的用户Id。
+
+标签<sign>表示应用的签名，
+属性 count表示标签中包含有多少个证书。
+cert表示具体的证书的值。
+
+标签<perms>表示应用声明使用的权限，每个子标签<item>代表一项权限。
+
+<package>标签解析后将保存在PackageSetting 的对象中。系统中实际运行的应用信息会通过标签<package>记录，被升级包覆盖的系统应用不通过<package>标签记录，
+而是通过<updated-packages>标签记录。这两个标签的属性基本一致。
+
+无论是<package>标签还是<updated-packages>标签记录的应用信息都将保存在PackageSetting对象中。
+*/
     Settings(Context context, File dataDir) {
         mContext = context;
         mSystemDir = new File(dataDir, "system");
-        mSystemDir.mkdirs();
+        mSystemDir.mkdirs(); //wwxx  在/data目录下创建system目录
         FileUtils.setPermissions(mSystemDir.toString(),
                 FileUtils.S_IRWXU|FileUtils.S_IRWXG
                 |FileUtils.S_IROTH|FileUtils.S_IXOTH,
-                -1, -1);
-        mSettingsFilename = new File(mSystemDir, "packages.xml");
+                -1, -1);//设置目录的属性为0775
+        mSettingsFilename = new File(mSystemDir, "packages.xml"); //记录系统中所有安装的应用信息，包括基本信息、签名和权限。
         mBackupSettingsFilename = new File(mSystemDir, "packages-backup.xml");
-        mPackageListFilename = new File(mSystemDir, "packages.list");
+
+        mPackageListFilename = new File(mSystemDir, "packages.list"); //保存普通应用的数据目录和 uid等信息。
         FileUtils.setPermissions(mPackageListFilename, 0660, SYSTEM_UID, PACKAGE_INFO_GID);
 
         // Deprecated: Needed for migration
-        mStoppedPackagesFilename = new File(mSystemDir, "packages-stopped.xml");
+        mStoppedPackagesFilename = new File(mSystemDir, "packages-stopped.xml"); //记录系统中被强制停止运行的应用信息。系统在强制停止某个应用时，会将应用的信息记录到该文件中。
         mBackupStoppedPackagesFilename = new File(mSystemDir, "packages-stopped-backup.xml");
     }
 

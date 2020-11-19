@@ -23,6 +23,18 @@ import java.io.File;
 
 /**
  * Settings data for a particular package we know about.
+wwxx 
+
+PackageSetting 继承了PackageSettingBase类，PackageSettingBase类又继承了GrantedPremissi类,
+
+应用的基本信息保存在PackageSettingBase类的成员变量中,申明的权限保存在GrantedPremissi类，
+
+签名则保存在 SharedUserSetting 类的成员变量signatures中。
+
+类SharedUserSetting用来描述具有相同sharedUserld 的应用信息，它的成员变量 packages 保存了所有具有相同sharedUserld的应用信息的引用。
+这些应用的签名是相同的，所有只需要在成员变量signatures中保存一份。通过这个对象，Android运行时很容易检索到和某个应用拥有相同sharedUserld的其他应用。
+
+
  */
 final class PackageSetting extends PackageSettingBase {
     int appId;
