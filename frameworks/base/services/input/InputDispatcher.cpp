@@ -219,7 +219,7 @@ InputDispatcher::~InputDispatcher() {
         unregisterInputChannel(mConnectionsByFd.valueAt(0)->inputChannel);
     }
 }
-
+//wwxx threadLoop()函数只是调用了InputDispatcher 的 dispatchOnce()函数，这个函数的代码如下:
 void InputDispatcher::dispatchOnce() {
     nsecs_t nextWakeupTime = LONG_LONG_MAX;
     { // acquire lock
@@ -228,8 +228,11 @@ void InputDispatcher::dispatchOnce() {
 
         // Run a dispatch loop if there are no pending commands.
         // The dispatch loop might enqueue commands to run afterwards.
-        if (!haveCommandsLocked()) {
-            dispatchOnceInnerLocked(&nextWakeupTime);
+        if (!haveCommandsLocked()) {//如果mCommandQueue队列不为NULL
+            dispatchOnceInnerLocked(&nextWakeupTime); //分发消息
+            /*
+                dispatchOnce()调用 dispatchOnceInnerLocked()  函数来分发消息， dispatchOnceInnerLocked() 函数又调用了 dispatchOnceInnerLocked()函数，这个函数的代码如下所示:
+            */
         }
 
         // Run all pending commands if there are any.
@@ -244,7 +247,12 @@ void InputDispatcher::dispatchOnce() {
     int timeoutMillis = toMillisecondTimeoutDelay(currentTime, nextWakeupTime);
     mLooper->pollOnce(timeoutMillis);
 }
+/*wwxx
+dispatchOnceInnerLocked() 函数从 mInboundQueue 队列中把输入消息取出来后,根据消息的类型，调用不同的函数处理，其中 Key Event调用 dispatchKeyLocked()函数处理。
 
+从 dispatchKeyLocked()函数开始，一直到消息传递出去，还要调用 InputDispatcher类的多个函数，如图16.3所示。
+
+*/
 void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
     nsecs_t currentTime = now();
 
@@ -2343,7 +2351,9 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
         mLooper->wake();
     }
 }
-
+/*
+notifyKey()函数的作用就是使用函数的参数、创建KeyEntry对象、然后调用函数 enqueueInboundEventLocked() 把创建的KeyEntry对象加入到mInboundQueue对象中。如下所示:
+*/
 void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("notifyKey - eventTime=%lld, deviceId=%d, source=0x%x, policyFlags=0x%x, action=0x%x, "
@@ -2411,14 +2421,14 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
         KeyEntry* newEntry = new KeyEntry(args->eventTime,
                 args->deviceId, args->source, policyFlags,
                 args->action, flags, args->keyCode, args->scanCode,
-                metaState, repeatCount, args->downTime);
+                metaState, repeatCount, args->downTime);//创建KeyEntry对象
 
-        needWake = enqueueInboundEventLocked(newEntry);
+        needWake = enqueueInboundEventLocked(newEntry); //把对象加入到队列中
         mLock.unlock();
     } // release lock
 
     if (needWake) {
-        mLooper->wake();
+        mLooper->wake();//调用mLooper的wake唤醒线程
     }
 }
 
@@ -4461,7 +4471,9 @@ InputDispatcherThread::InputDispatcherThread(const sp<InputDispatcherInterface>&
 
 InputDispatcherThread::~InputDispatcherThread() {
 }
-
+/* wwxx
+在 InputManager 中创建的两个线程，InputDispatcherThread还没有分析。我们看看它的运行函数，如下所示:
+*/
 bool InputDispatcherThread::threadLoop() {
     mDispatcher->dispatchOnce();
     return true;

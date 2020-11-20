@@ -243,6 +243,7 @@ public class InputManagerService extends IInputManager.Stub
 
     public InputManagerService(Context context, Handler handler) {
         this.mContext = context;
+        //wwxx //创建处理消息的Handler对象
         this.mHandler = new InputManagerHandler(handler.getLooper());
 
         mUseDevInputEventForAudioJack =
@@ -250,7 +251,12 @@ public class InputManagerService extends IInputManager.Stub
         Slog.i(TAG, "Initializing input manager, mUseDevInputEventForAudioJack="
                 + mUseDevInputEventForAudioJack);
         mPtr = nativeInit(this, mContext, mHandler.getLooper().getQueue());
-    }
+    }/*
+        InputManagerService的构造方法首先创建了用于消息处理的 InputManagerHandler对象，然后调用这个对象的getLooper()方法得到主线程的Looper对象，
+        再调用getQueue()方法得到线程的消息队列。最后，以消息队列对象作为参数调用nativeInit()方法来完成初始化。
+        nativeInit()方法对应的native层的函数如下:
+
+    */
 
     public void setWindowManagerCallbacks(WindowManagerCallbacks callbacks) {
         mWindowManagerCallbacks = callbacks;
@@ -260,12 +266,16 @@ public class InputManagerService extends IInputManager.Stub
         mWiredAccessoryCallbacks = callbacks;
     }
 
+    /*wwxx
+        InputManagerService对象创建后，SystemService中会调用它的start()方法，代码如下:
+
+    */
     public void start() {
         Slog.i(TAG, "Starting input manager");
-        nativeStart(mPtr);
+        nativeStart(mPtr);//调用本地函数
 
         // Add ourself to the Watchdog monitors.
-        Watchdog.getInstance().addMonitor(this);
+        Watchdog.getInstance().addMonitor(this);//加入到 watchDog的监控中
 
         registerPointerSpeedSettingObserver();
         registerShowTouchesSettingObserver();

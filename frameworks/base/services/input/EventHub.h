@@ -70,11 +70,11 @@ enum {
  * A raw event as retrieved from the EventHub.
  */
 struct RawEvent {
-    nsecs_t when;
-    int32_t deviceId;
-    int32_t type;
-    int32_t code;
-    int32_t value;
+    nsecs_t when;    //产生时间
+    int32_t deviceId;//设备Id
+    int32_t type;   //类型
+    int32_t code;   //输入码
+    int32_t value;  //数据值
 };
 
 /* Describes an absolute axis. */

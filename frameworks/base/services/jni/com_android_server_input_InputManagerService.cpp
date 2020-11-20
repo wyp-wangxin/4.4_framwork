@@ -261,7 +261,10 @@ private:
 };
 
 
+/*wwxx
+NativeInputManager的构造函数中新创建了两个对象:EventHub 和 InputManager 对象。我们再看看 InputManager 的构造函数:
 
+*/
 NativeInputManager::NativeInputManager(jobject contextObj,
         jobject serviceObj, const sp<Looper>& looper) :
         mLooper(looper) {
@@ -976,7 +979,13 @@ void NativeInputManager::loadPointerResources(PointerResources* outResources) {
 
 
 // ----------------------------------------------------------------------------
+/*wwxx
+nativeInit()函数首先调用 android_os_MessageQueue_getMessageQueue()函数，这个函数将保存在Java层的 MessageQueue对象的 mPtr 成员变量中的值返回，
+mPtr 中保存的是 Jave层的 MessageQueue 对象创建时在native层创建的与之关联的 NativeMessageQueue 对象的指针。
 
+NativeMessageQueue 对象的指针保存在变量 messageQueue 中，然后调用它的 getLooper() 函数得到它关联的 Looper 对象的指针，
+最后用这个 Looper 对象为参数创建了一个 NativeInputManager 对象。我们看看 NativeInputManager 的构造函数:
+*/
 static jint nativeInit(JNIEnv* env, jclass clazz,
         jobject serviceObj, jobject contextObj, jobject messageQueueObj) {
     sp<MessageQueue> messageQueue = android_os_MessageQueue_getMessageQueue(env, messageQueueObj);
@@ -990,11 +999,14 @@ static jint nativeInit(JNIEnv* env, jclass clazz,
     im->incStrong(0);
     return reinterpret_cast<jint>(im);
 }
+/*wwxx
+    start()方法中又调用了nativeStart()方法，其对应的本地函数代码如下:
 
+*/
 static void nativeStart(JNIEnv* env, jclass clazz, jint ptr) {
     NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
 
-    status_t result = im->getInputManager()->start();
+    status_t result = im->getInputManager()->start();//nativeStart()函数只是调用了InputManager对象的start()函数，代码如下:
     if (result) {
         jniThrowRuntimeException(env, "Input manager could not be started.");
     }

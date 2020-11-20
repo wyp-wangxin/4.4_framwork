@@ -58,9 +58,13 @@ NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other) :
         keyCode(other.keyCode), scanCode(other.scanCode),
         metaState(other.metaState), downTime(other.downTime) {
 }
-
+/*wwxx
+notify()函数调用了listener的 notifyKey()函数。
+前面我们已经提示了，这个listener指针是构造InputReader 的参数。再回去看看InputReader的创建过程，创建InputReader对象传递的参数listener实际上是指向InputDispatcher对象的指针，
+它的notifyKey)函数如下所示
+*/
 void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
-    listener->notifyKey(this);
+    listener->notifyKey(this);//InputDispatcher::notifyKey (const NotifyKeyArgs* args)
 }
 
 
@@ -151,7 +155,12 @@ void QueuedInputListener::notifyConfigurationChanged(
         const NotifyConfigurationChangedArgs* args) {
     mArgsQueue.push(new NotifyConfigurationChangedArgs(*args));
 }
+//wwxx getListener()->notifyKey(&args);
+/*
+notifyKey()只是把args参数放到了mArgsQueue 中。
 
+让我们回到 InputRead 的 LoopOnce()函数，这个函数的结尾调用了 mQueuedListener 的 flush() 函数,函数代码如下:
+*/
 void QueuedInputListener::notifyKey(const NotifyKeyArgs* args) {
     mArgsQueue.push(new NotifyKeyArgs(*args));
 }
@@ -167,7 +176,9 @@ void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
 void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     mArgsQueue.push(new NotifyDeviceResetArgs(*args));
 }
-
+/*
+flush函数把 mArgsQueue 中所有NotifyArgs对象都取出来，调用它们的notify()函数。我们知道,NotfiyArgs 只是一个基本类,还是以key为例,实际的对象类型是NotifyKeyArgs,它的notify()函数如下所示:
+*/
 void QueuedInputListener::flush() {
     size_t count = mArgsQueue.size();
     for (size_t i = 0; i < count; i++) {

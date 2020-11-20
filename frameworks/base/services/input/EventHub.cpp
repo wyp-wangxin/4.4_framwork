@@ -193,7 +193,11 @@ const uint32_t EventHub::EPOLL_ID_INOTIFY;
 const uint32_t EventHub::EPOLL_ID_WAKE;
 const int EventHub::EPOLL_SIZE_HINT;
 const int EventHub::EPOLL_MAX_EVENTS;
+/*wwxx
+一台移动设备中能产生输入消息的部件很多，包括键盘、触摸屏、按键等。EventHub的作用就是把所有这些设备产生的消息统一成一种格式，再发往上层进行处理。
+我们看看EventHub的构造函数:
 
+*/
 EventHub::EventHub(void) :
         mBuiltInKeyboardId(NO_BUILT_IN_KEYBOARD), mNextDeviceId(1), mControllerNumbers(),
         mOpeningDevices(0), mClosingDevices(0),
@@ -202,11 +206,11 @@ EventHub::EventHub(void) :
         mPendingEventCount(0), mPendingEventIndex(0), mPendingINotify(false) {
     acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
 
-    mEpollFd = epoll_create(EPOLL_SIZE_HINT);
+    mEpollFd = epoll_create(EPOLL_SIZE_HINT);//创建一个epoll句柄
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance.  errno=%d", errno);
 
-    mINotifyFd = inotify_init();
-    int result = inotify_add_watch(mINotifyFd, DEVICE_PATH, IN_DELETE | IN_CREATE);
+    mINotifyFd = inotify_init();//创建一个inotify对象
+    int result = inotify_add_watch(mINotifyFd, DEVICE_PATH, IN_DELETE | IN_CREATE);// 监视/dev/input目录的变化
     LOG_ALWAYS_FATAL_IF(result < 0, "Could not register INotify for %s.  errno=%d",
             DEVICE_PATH, errno);
 
@@ -214,21 +218,21 @@ EventHub::EventHub(void) :
     memset(&eventItem, 0, sizeof(eventItem));
     eventItem.events = EPOLLIN;
     eventItem.data.u32 = EPOLL_ID_INOTIFY;
-    result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mINotifyFd, &eventItem);
+    result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mINotifyFd, &eventItem);//把 inotify 的句柄加入到 epol1的监测中
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add INotify to epoll instance.  errno=%d", errno);
 
     int wakeFds[2];
-    result = pipe(wakeFds);
+    result = pipe(wakeFds);//创建匿名管道
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not create wake pipe.  errno=%d", errno);
 
     mWakeReadPipeFd = wakeFds[0];
     mWakeWritePipeFd = wakeFds[1];
 
-    result = fcntl(mWakeReadPipeFd, F_SETFL, O_NONBLOCK);
+    result = fcntl(mWakeReadPipeFd, F_SETFL, O_NONBLOCK);//将管道读端设成非阻塞模式
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not make wake read pipe non-blocking.  errno=%d",
             errno);
 
-    result = fcntl(mWakeWritePipeFd, F_SETFL, O_NONBLOCK);
+    result = fcntl(mWakeWritePipeFd, F_SETFL, O_NONBLOCK);//将管道写端设成非阻塞模式
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not make wake write pipe non-blocking.  errno=%d",
             errno);
 
@@ -236,7 +240,24 @@ EventHub::EventHub(void) :
     result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mWakeReadPipeFd, &eventItem);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add wake read pipe to epoll instance.  errno=%d",
             errno);
+}/*
+EventHub 的构造函数首先创建了一个epoll句柄，然后又创建了一个inotify句柄和一个匿名管道，并将inotify的句柄和管道的“读端”句柄都加入到epoll的监测中。
+inotify是Linux中监视目录和文件变化的一种机制，这里监视的目录是/dev/input。如果这个目录有变化，就表明系统中有输入设备加入了或者移除了，如外置的usb键盘。
+
+
+在 EventHub 的构造函数中，并没有和任何输入设备关联。在EventHub的getEvents()函数中，如果是第一次调用该函数，将调用 scanDevicesLocked() 函数，如下所示:
+
+size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) {
+        ...........
+        if (mNeedToScanDevices) {
+            mNeedToScanDevices = false;
+            scanDevicesLocked();//scanDevicesLocked()函数将调用scanDirLocked()来扫描/dev/input目录，如下所示:
+            mNeedToSendFinishedDeviceScan = true;
+        }
+        .............
 }
+
+*/
 
 EventHub::~EventHub(void) {
     closeAllDevicesLocked();
@@ -644,6 +665,14 @@ EventHub::Device* EventHub::getDeviceByPathLocked(const char* devicePath) const 
     return NULL;
 }
 
+/*
+getEvents 的代码也很长，细节就省略了，这里只分析它的主干，getEvents()中会读取每个设备的数据，形成 RawEvent结构后放到readBuffer 中，
+如果没有输入事件，将在调用epoll_wait()函数时阻塞等待。
+
+因此，读取 event 的流程就清楚了，InputReaderThread 线程大部分时间都是在 epoll_wait()上等待,如果某种设备上有事件到来,将会唤醒线程,
+从设备中读取数据，读到的数据形成 RawEvent 结构，存放在 mEventBuffer 中，然后调用 processEventsLocked() 函数来处理。
+*/
+
 size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) {
     ALOG_ASSERT(bufferSize >= 1);
 
@@ -687,7 +716,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
 
         if (mNeedToScanDevices) {
             mNeedToScanDevices = false;
-            scanDevicesLocked();
+            scanDevicesLocked();//scanDevicesLocked()函数将调用scanDirLocked()来扫描/dev/input目录，如下所示:
             mNeedToSendFinishedDeviceScan = true;
         }
 
@@ -753,8 +782,8 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
             }
 
             Device* device = mDevices.valueAt(deviceIndex);
-            if (eventItem.events & EPOLLIN) {
-                int32_t readSize = read(device->fd, readBuffer,
+            if (eventItem.events & EPOLLIN) {//epoll检测到有输入
+                int32_t readSize = read(device->fd, readBuffer,//读取设备的数据
                         sizeof(struct input_event) * capacity);
                 if (readSize == 0 || (readSize < 0 && errno == ENODEV)) {
                     // Device was removed before INotify noticed.
@@ -917,7 +946,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
         mLock.unlock(); // release lock before poll, must be before release_wake_lock
         release_wake_lock(WAKE_LOCK_ID);
 
-        int pollResult = epoll_wait(mEpollFd, mPendingEventItems, EPOLL_MAX_EVENTS, timeoutMillis);
+        int pollResult = epoll_wait(mEpollFd, mPendingEventItems, EPOLL_MAX_EVENTS, timeoutMillis);//调用epoll_wait等待数据
 
         acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
         mLock.lock(); // reacquire lock after poll, must be after acquire_wake_lock
@@ -946,7 +975,13 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
 
     // All done, return the number of events we read.
     return event - buffer;
-}
+}/*wwxx
+getEvents 的代码也很长，细节就省略了，这里只分析它的主干，getEvents() 中会读取每个设备的数据，形成 RawEvent结构后放到 readBuffer 中，
+如果没有输入事件，将在调用epoll_wait()函数时阻塞等待。
+
+因此，读取 event 的流程就清楚了，InputReaderThread 线程大部分时间都是在 epoll_wait()上等待,如果某种设备上有事件到来,将会唤醒线程,从设备中读取数据，
+读到的数据形成RawEvent结构，存放在 mEventBuffer 中，然后调用 processEventsLocked() 函数来处理。
+*/
 
 void EventHub::wake() {
     ALOGV("wake() called");
@@ -962,7 +997,7 @@ void EventHub::wake() {
 }
 
 void EventHub::scanDevicesLocked() {
-    status_t res = scanDirLocked(DEVICE_PATH);
+    status_t res = scanDirLocked(DEVICE_PATH);//wwxx 扫描/dev /input目录
     if(res < 0) {
         ALOGE("scan dir failed for %s\n", DEVICE_PATH);
     }
@@ -996,7 +1031,10 @@ static const int32_t GAMEPAD_KEYCODES[] = {
         AKEYCODE_BUTTON_9, AKEYCODE_BUTTON_10, AKEYCODE_BUTTON_11, AKEYCODE_BUTTON_12,
         AKEYCODE_BUTTON_13, AKEYCODE_BUTTON_14, AKEYCODE_BUTTON_15, AKEYCODE_BUTTON_16,
 };
+/*
 
+
+*/
 status_t EventHub::openDeviceLocked(const char *devicePath) {
     char buffer[80];
 
@@ -1010,7 +1048,7 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
 
     InputDeviceIdentifier identifier;
 
-    // Get device name.
+    // Get device name.//获取设备信息
     if(ioctl(fd, EVIOCGNAME(sizeof(buffer) - 1), &buffer) < 1) {
         //fprintf(stderr, "could not get device name for %s, %s\n", devicePath, strerror(errno));
     } else {
@@ -1073,7 +1111,7 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
         close(fd);
         return -1;
     }
-
+    //创建Device对象
     // Allocate device.  (The device object takes ownership of the fd at this point.)
     int32_t deviceId = mNextDeviceId++;
     Device* device = new Device(fd, deviceId, String8(devicePath), identifier);
@@ -1246,7 +1284,7 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
     memset(&eventItem, 0, sizeof(eventItem));
     eventItem.events = EPOLLIN;
     eventItem.data.u32 = deviceId;
-    if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, fd, &eventItem)) {
+    if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, fd, &eventItem)) {//加入到epol1的监控中
         ALOGE("Could not add device fd to epoll instance.  errno=%d", errno);
         delete device;
         return -1;
@@ -1285,9 +1323,15 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
          toString(mBuiltInKeyboardId == deviceId),
          toString(usingSuspendBlockIoctl), toString(usingClockIoctl));
 
-    addDeviceLocked(device);
+    addDeviceLocked(device);//加入到 mDevice列表中
     return 0;
-}
+}/*wwxx
+openDeviceLocked()函数比较长，它首先调用open()函数打开设备，然后通过ioctl()来取得设备的信息，包括设备名称、Id等。
+然后根据这些信息判断设备的类型，并根据设备的不同，进行不同的初始化。
+接着为设备创建一个Device对象，并将设备对象的句柄加入到 epoll 的监控中。
+最后调用addDeviceLocked()函数把 Device对象添加到EventHub 的mDevices列表中。
+
+*/
 
 void EventHub::createVirtualKeyboardLocked() {
     InputDeviceIdentifier identifier;
@@ -1500,7 +1544,57 @@ status_t EventHub::readNotifyLocked() {
     }
     return 0;
 }
+/*wwxx
+scanDirLocked()函数打开/dev/input目录后，对目录下的每个文件都调用openDeviceLocked()函数。笔者手机上/dev/input 中目录下的内容如下:
 
+root@p201_iptv:/ # ll /dev/input/
+crw-rw---- root     input     13,  64 2015-01-01 08:00 event0
+crw-rw---- root     input     13,  65 2015-01-01 08:00 event1
+crw-rw---- root     input     13,  66 2015-01-01 08:00 event2
+crw-rw---- root     input     13,  63 2015-01-01 08:00 mice
+crw-rw---- root     input     13,  32 2015-01-01 08:00 mouse0
+root@p201_iptv:/ #
+
+在/dev/input下存放的并不是设备，而是event 文件。这些event 文件对应的设备信息在文件/proc/bus/input/devices中可以查到,如下所示:
+
+root@p201_iptv:/ # cat /proc/bus/input/devices
+I: Bus=0010 Vendor=0001 Product=0001 Version=0100
+N: Name="aml_keypad"
+P: Phys=keypad/input0
+S: Sysfs=/devices/meson_remote.13/input/input0
+U: Uniq=
+H: Handlers=sysrq kbd mouse0 event0
+B: PROP=0
+B: EV=f
+B: KEY=7fffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff fffff                     fff ffffffff fffffffe
+B: REL=103
+B: ABS=0
+
+I: Bus=0010 Vendor=0001 Product=0001 Version=0100
+N: Name="gpio_keypad"
+P: Phys=gpio_keypad/input0
+S: Sysfs=/devices/gpio_keypad.52/input/input1
+U: Uniq=
+H: Handlers=kbd event1
+B: PROP=0
+B: EV=100003
+B: KEY=100000 0 0 0
+
+I: Bus=0010 Vendor=1b8e Product=0cec Version=0001
+N: Name="cec_input"
+P: Phys=
+S: Sysfs=/devices/virtual/input/input2
+U: Uniq=
+H: Handlers=kbd event2
+B: PROP=0
+B: EV=3
+B: KEY=20000000 0 0 0 0 0 0 0 0 0 0 3c004 2 0 0 1 4 10300 11fa 40000801 1e1680 800000 100000 ffc
+
+root@p201_iptv:/ #
+
+
+
+*/
 status_t EventHub::scanDirLocked(const char *dirname)
 {
     char devname[PATH_MAX];
@@ -1519,7 +1613,7 @@ status_t EventHub::scanDirLocked(const char *dirname)
             (de->d_name[1] == '.' && de->d_name[2] == '\0')))
             continue;
         strcpy(filename, de->d_name);
-        openDeviceLocked(devname);
+        openDeviceLocked(devname);//我们看看openDeviceLocked()函数，代码如下:
     }
     closedir(dir);
     return 0;

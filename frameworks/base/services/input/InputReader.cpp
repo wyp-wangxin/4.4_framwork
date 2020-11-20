@@ -243,6 +243,20 @@ InputReader::~InputReader() {
     }
 }
 
+/*
+loopOnce()函数首先调用 EventHub的 getEvents()函数来读取 Event，读到的 Event 保存在 mEventBuffer 中，
+Event 的数量通过 getEvents() 函数的返回值返回，如果得到的 Event 的数量大于0，将调用 processEventsLocked() 函数来处理这些 Event 。Event 的类型是 RawEvent ，定义如下:
+
+struct RawEvent {
+    nsecs_t when;     //产生时间
+    int32_t deviceId; //设备Id
+    int32_t type;     //类型
+    int32_t code;     //输入码
+    int32_t value;    //数据值
+};
+
+
+*/
 void InputReader::loopOnce() {
     int32_t oldGeneration;
     int32_t timeoutMillis;
@@ -265,14 +279,14 @@ void InputReader::loopOnce() {
         }
     } // release lock
 
-    size_t count = mEventHub->getEvents(timeoutMillis, mEventBuffer, EVENT_BUFFER_SIZE);
+    size_t count = mEventHub->getEvents(timeoutMillis, mEventBuffer, EVENT_BUFFER_SIZE);// 下面看看getEvents()函数的代码:
 
     { // acquire lock
         AutoMutex _l(mLock);
         mReaderIsAliveCondition.broadcast();
 
         if (count) {
-            processEventsLocked(mEventBuffer, count);
+            processEventsLocked(mEventBuffer, count);//函数processEventsLocked()的代码如下:
         }
 
         if (mNextTimeout != LLONG_MAX) {
@@ -304,35 +318,42 @@ void InputReader::loopOnce() {
     // resulting in a deadlock.  This situation is actually quite plausible because the
     // listener is actually the input dispatcher, which calls into the window manager,
     // which occasionally calls into the input reader.
-    mQueuedListener->flush();
+    mQueuedListener->flush();//看定义处。
 }
+/*wwxx
+processEventsLocked()处理的RawEvent分成两类，一类是设备发生变化的Event，包括添加设备、移除设备和扫描设备结束3种情况。
+对于添加设备和移除设备的 Event 处理比较简单，只需要增加和删除mDevices列表中 Device对象就完成了。
+而对于扫描设备结束的Event，还需要调用handleConfigurationChangedLocked()函数来处理设备的配置文件。
 
+另一类是设备自身产生的Event，例如键盘的按键 Event。
+对于这一类Event，会从RawEvent数组中取出连续的同类Event，然后通过 processEventsForDeviceLocked()函数一起处理，函数代如下:
+*/
 void InputReader::processEventsLocked(const RawEvent* rawEvents, size_t count) {
     for (const RawEvent* rawEvent = rawEvents; count;) {
         int32_t type = rawEvent->type;
         size_t batchSize = 1;
         if (type < EventHubInterface::FIRST_SYNTHETIC_EVENT) {
             int32_t deviceId = rawEvent->deviceId;
-            while (batchSize < count) {
+            while (batchSize < count) {//wwxx 把属于同一设备的RawEvent一起处理
                 if (rawEvent[batchSize].type >= EventHubInterface::FIRST_SYNTHETIC_EVENT
                         || rawEvent[batchSize].deviceId != deviceId) {
                     break;
                 }
-                batchSize += 1;
+                batchSize += 1; // 设备号相同,batchSize加一
             }
 #if DEBUG_RAW_EVENTS
             ALOGD("BatchSize: %d Count: %d", batchSize, count);
 #endif
             processEventsForDeviceLocked(deviceId, rawEvent, batchSize);
-        } else {
+        } else {//wwxx 处理设备相关的Event 
             switch (rawEvent->type) {
-            case EventHubInterface::DEVICE_ADDED:
+            case EventHubInterface::DEVICE_ADDED://增加设备
                 addDeviceLocked(rawEvent->when, rawEvent->deviceId);
                 break;
-            case EventHubInterface::DEVICE_REMOVED:
+            case EventHubInterface::DEVICE_REMOVED://移除设备
                 removeDeviceLocked(rawEvent->when, rawEvent->deviceId);
                 break;
-            case EventHubInterface::FINISHED_DEVICE_SCAN:
+            case EventHubInterface::FINISHED_DEVICE_SCAN: //扫描设备结束
                 handleConfigurationChangedLocked(rawEvent->when);
                 break;
             default:
@@ -455,7 +476,9 @@ InputDevice* InputReader::createDeviceLocked(int32_t deviceId, int32_t controlle
 
     return device;
 }
-
+/*wwxx 
+processEventsForDeviceLocked() 函数根据 devicdld 得到 InputDevice 对象，然后调用它的 process()函数。
+*/
 void InputReader::processEventsForDeviceLocked(int32_t deviceId,
         const RawEvent* rawEvents, size_t count) {
     ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
@@ -834,12 +857,15 @@ InputReaderThread::InputReaderThread(const sp<InputReaderInterface>& reader) :
 
 InputReaderThread::~InputReaderThread() {
 }
-
+//wwxx 在前面的启动过程中创建了两个线程，我们先看看 InputReaderThread 线程的运行函数:
 bool InputReaderThread::threadLoop() {
     mReader->loopOnce();
     return true;
 }
+/*wwxx
+threadLoop()函数中调用了 mReader 的 loopOnce()函数，这个 mReader 的类型是InputReader类，它的loopOnce()函数的代码如下:
 
+*/
 
 // --- InputDevice ---
 
@@ -948,7 +974,13 @@ void InputDevice::reset(nsecs_t when) {
 
     notifyReset(when);
 }
+/*wwxx
+process()函数处理RawEvent的方式是对每个 RawEvent 调用它的所有 InputMaper 对象的 process()函数。
+InputMapper 对象其实有多种可能的类型，包括 SwitchInputMapper、VibratorInputMapper、KeyboardInputMapper、 
+CursorInputMapper、TouchInputMapper、SingleTouchInputMapper,MultiTouchInputMapper、JoystickInputMapper。
 
+下面以 KeyboardInputMapper 为例来看看它的 Process()函数。
+*/
 void InputDevice::process(const RawEvent* rawEvents, size_t count) {
     // Process all of the events in order for each mapper.
     // We cannot simply ask each mapper to process them in bulk because mappers may
@@ -2053,7 +2085,7 @@ void KeyboardInputMapper::reset(nsecs_t when) {
 
 void KeyboardInputMapper::process(const RawEvent* rawEvent) {
     switch (rawEvent->type) {
-    case EV_KEY: {
+    case EV_KEY: {// wwxx 如果是按键消息
         int32_t scanCode = rawEvent->code;
         int32_t usageCode = mCurrentHidUsage;
         mCurrentHidUsage = 0;
@@ -2065,7 +2097,7 @@ void KeyboardInputMapper::process(const RawEvent* rawEvent) {
                 keyCode = AKEYCODE_UNKNOWN;
                 flags = 0;
             }
-            processKey(rawEvent->when, rawEvent->value != 0, keyCode, scanCode, flags);
+            processKey(rawEvent->when, rawEvent->value != 0, keyCode, scanCode, flags);//process()函数对于收到的按键消息调用processKey()函数来处理;
         }
         break;
     }
@@ -2162,12 +2194,18 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t keyCode,
     if (down && !isMetaKey(keyCode)) {
         getContext()->fadePointer();
     }
-
+    //wwxx 把扫描码翻译成键盘码
     NotifyKeyArgs args(when, getDeviceId(), mSource, policyFlags,
             down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
             AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, newMetaState, downTime);
     getListener()->notifyKey(&args);
-}
+}/*wwxx
+processKey()函数的主要工作是把扫描码转换成键盘码，然后调用 getListener()函数得到 InputListenerInterface 的指针，最后调用它的 notifyKey()函数。
+这个 InputListenerInterface 指针实际指向的是 QueuedInputListener 对象，它是在 InputReader 的构造函数中创建出来的，如下所示-->
+
+我们再看看processKey ()函数中调用的QueuedInputListener 的 notifyKey()函数，代码如下：-->
+
+*/
 
 ssize_t KeyboardInputMapper::findKeyDown(int32_t scanCode) {
     size_t n = mKeyDowns.size();
