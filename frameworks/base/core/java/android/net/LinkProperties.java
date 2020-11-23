@@ -60,13 +60,16 @@ import java.util.Hashtable;
  */
 public class LinkProperties implements Parcelable {
     // The interface described by the network link.
-    private String mIfaceName;
-    private Collection<LinkAddress> mLinkAddresses = new ArrayList<LinkAddress>();
-    private Collection<InetAddress> mDnses = new ArrayList<InetAddress>();
-    private String mDomains;
-    private Collection<RouteInfo> mRoutes = new ArrayList<RouteInfo>();
-    private ProxyProperties mHttpProxy;
-    private int mMtu;
+
+
+
+    private String mIfaceName;       //网络interface名称 
+    private Collection<LinkAddress> mLinkAddresses = new ArrayList<LinkAddress>();  //用于连接的IP地址
+    private Collection<InetAddress> mDnses = new ArrayList<InetAddress>();     // DNS服务器的IP地址
+    private String mDomains;                                                   //域名
+    private Collection<RouteInfo> mRoutes = new ArrayList<RouteInfo>();        //路由信息
+    private ProxyProperties mHttpProxy;                                        //HTTP代理
+    private int mMtu;                                                          //网络连接的MTU值
 
     // Stores the properties of links that are "stacked" above this link.
     // Indexed by interface name to allow modification and to prevent duplicates being added.

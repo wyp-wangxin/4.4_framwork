@@ -189,21 +189,28 @@ public class NetworkManagementService extends INetworkManagementService.Stub
      *
      * @param context  Binder context for this service
      */
+    /*wwxx
+    NetworkManagementService 的构造方法中创建了 NativeDaemonConnector 对象和一个线程对象，
+    这个线程的执行方法是 NativeDaemonConnector 对象的 run()方法，主要用于和netd通信。
+
+    */
     private NetworkManagementService(Context context, String socket) {
         mContext = context;
 
         if ("simulator".equals(SystemProperties.get("ro.product.device"))) {
             return;
         }
-
+        //创建NativeDaemonConnector对象
         mConnector = new NativeDaemonConnector(
                 new NetdCallbackReceiver(), socket, 10, NETD_TAG, 160);
-        mThread = new Thread(mConnector, NETD_TAG);
+        mThread = new Thread(mConnector, NETD_TAG);//创建—个线程对象
 
         // Add ourself to the Watchdog monitors.
         Watchdog.getInstance().addMonitor(this);
     }
-
+/*wwxx
+SystemServer中调用NetworkManagementService的create()方法来创建服务,create()方法的代码如下:
+*/
     static NetworkManagementService create(Context context,
             String socket) throws InterruptedException {
         final NetworkManagementService service = new NetworkManagementService(context, socket);
@@ -219,7 +226,9 @@ public class NetworkManagementService extends INetworkManagementService.Stub
     public static NetworkManagementService create(Context context) throws InterruptedException {
         return create(context, NETD_SOCKET_NAME);
     }
-
+/*wwxx
+ SystemServer 中还会调用NetworkManagementService的systemReady()方法，看prepareNativeDaemon（)方法:
+*/
     public void systemReady() {
         prepareNativeDaemon();
         if (DBG) Slog.d(TAG, "Prepared");
@@ -337,12 +346,20 @@ public class NetworkManagementService extends INetworkManagementService.Stub
      * Prepare native daemon once connected, enabling modules and pushing any
      * existing in-memory rules.
      */
+
+    /*wwxx
+    prepareNativeDaemon()方法首先判断kernel是否支持带宽控制，如果支持，则发送控制带宽的命令给netd，启动带宽控制。
+    mActiveQuotas 数组中存放的是每种网络连接的带宽限制，调用setInterfaceQuota()方法将发送命令给netd来设置一种网络接口的带宽限制。
+    mActiveAlerts 数组存放的是每种网络连接的Alert 限制值，调用setInterfaceAlert将发送命令给netd来设置一种网络接口的Alert限制，超过这个值系统将发出警告消息。
+    mUidRejectOnQuota 数组保存的是不实行带宽控制的应用的uid，通过setUidNetworkRules方法把它们设置到netd中。
+    这3个数组的初始化值都是 NetworkPolicyManagerService 从配置文件中读取并设置的。
+    */
     private void prepareNativeDaemon() {
         mBandwidthControlEnabled = false;
 
         // only enable bandwidth control when support exists
         final boolean hasKernelSupport = new File("/proc/net/xt_qtaguid/ctrl").exists();
-        if (hasKernelSupport) {
+        if (hasKernelSupport) {//如果kernel支持带宽控制,发送命令给netd
             Slog.d(TAG, "enabling bandwidth control");
             try {
                 mConnector.execute("bandwidth", "enable");
@@ -353,10 +370,10 @@ public class NetworkManagementService extends INetworkManagementService.Stub
         } else {
             Slog.d(TAG, "not enabling bandwidth control");
         }
-
+        //设置属性"net.qtaguid_enabled"
         SystemProperties.set(PROP_QTAGUID_ENABLED, mBandwidthControlEnabled ? "1" : "0");
 
-        if (mBandwidthControlEnabled) {
+        if (mBandwidthControlEnabled) {//如果支持带宽控制，通知电池服务统计网络耗电量
             try {
                 IBatteryStats.Stub.asInterface(ServiceManager.getService(BatteryStats.SERVICE_NAME))
                         .noteNetworkStatsEnabled();
@@ -372,6 +389,7 @@ public class NetworkManagementService extends INetworkManagementService.Stub
                 final HashMap<String, Long> activeQuotas = mActiveQuotas;
                 mActiveQuotas = Maps.newHashMap();
                 for (Map.Entry<String, Long> entry : activeQuotas.entrySet()) {
+                    //设置一种网络接口的带宽限制
                     setInterfaceQuota(entry.getKey(), entry.getValue());
                 }
             }

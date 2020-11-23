@@ -268,34 +268,35 @@ public class ConnectivityManager {
      * will use this network type's interface by default
      * (it has a default route)
      */
-    public static final int TYPE_MOBILE      = 0;
+    public static final int TYPE_MOBILE      = 0;//移动网络数据连接，一旦激活，系统所有网络连接都使用它
     /**
      * The WIFI data connection.  When active, all data traffic
      * will use this network type's interface by default
      * (it has a default route).
      */
-    public static final int TYPE_WIFI        = 1;
+    public static final int TYPE_WIFI        = 1; //WIFI网络连接,一旦激活,系统所有网络连接都使用它
     /**
      * An MMS-specific Mobile data connection.  This network type may use the
      * same network interface as {@link #TYPE_MOBILE} or it may use a different
      * one.  This is used by applications needing to talk to the carrier's
      * Multimedia Messaging Service servers.
+         
      */
-    public static final int TYPE_MOBILE_MMS  = 2;
+    public static final int TYPE_MOBILE_MMS  = 2;//移动数据连接类型的一种，可以和 MOBILE_TYPE 连接类型相同也可以不同，用于连接移动运营商的彩信服务器 
     /**
      * A SUPL-specific Mobile data connection.  This network type may use the
      * same network interface as {@link #TYPE_MOBILE} or it may use a different
      * one.  This is used by applications needing to talk to the carrier's
      * Secure User Plane Location servers for help locating the device.
      */
-    public static final int TYPE_MOBILE_SUPL = 3;
+    public static final int TYPE_MOBILE_SUPL = 3;//移动数据连接类型的一种，可以和MOBILE_TYPE 连接类型相同也可以不同，用于使,用移动运营商的安全用户平面定位服务
     /**
      * A DUN-specific Mobile data connection.  This network type may use the
      * same network interface as {@link #TYPE_MOBILE} or it may use a different
      * one.  This is sometimes by the system when setting up an upstream connection
      * for tethering so that the carrier is aware of DUN traffic.
      */
-    public static final int TYPE_MOBILE_DUN  = 4;
+    public static final int TYPE_MOBILE_DUN  = 4;//移动数据连接类型的一种，可以和 MOBILE_TYPE 连接类型相同也可以不同。用于网络共享
     /**
      * A High Priority Mobile data connection.  This network type uses the
      * same network interface as {@link #TYPE_MOBILE} but the routing setup
@@ -303,63 +304,64 @@ public class ConnectivityManager {
      * Mobile DNS servers and only IP's explicitly requested via {@link #requestRouteToHost}
      * will route over this interface if no default route exists.
      */
-    public static final int TYPE_MOBILE_HIPRI = 5;
+    public static final int TYPE_MOBILE_HIPRI = 5;//具有最高优先级的移动数据连接类型，与 MOBILE_TYPE类型除了路由设置不同外，其他方面都相同。
+                                                  //在路由设置时，如果默认路由存在，则仅当请求进程必须存取移动DNS服务及P明确地通过 requestRouteToHost 函数请求时使用这个数据连接接口
     /**
      * The WiMAX data connection.  When active, all data traffic
      * will use this network type's interface by default
      * (it has a default route).
      */
-    public static final int TYPE_WIMAX       = 6;
+    public static final int TYPE_WIMAX       = 6;//WIMAX网络连接，一旦激活，系统所有网络连接都使用它
 
     /**
      * The Bluetooth data connection.  When active, all data traffic
      * will use this network type's interface by default
      * (it has a default route).
      */
-    public static final int TYPE_BLUETOOTH   = 7;
+    public static final int TYPE_BLUETOOTH   = 7;//Bluetooth网络连接,一旦激活，系统所有网络连接都使用它
 
     /**
      * Dummy data connection.  This should not be used on shipping devices.
      */
-    public static final int TYPE_DUMMY       = 8;
+    public static final int TYPE_DUMMY       = 8;//伪连接,用于测试
 
     /**
      * The Ethernet data connection.  When active, all data traffic
      * will use this network type's interface by default
      * (it has a default route).
      */
-    public static final int TYPE_ETHERNET    = 9;
+    public static final int TYPE_ETHERNET    = 9;//使用网卡进行网络连接，一旦激活，系统所有网络连接都使用它
 
     /**
      * Over the air Administration.
      * {@hide}
      */
-    public static final int TYPE_MOBILE_FOTA = 10;
+    public static final int TYPE_MOBILE_FOTA = 10;//移动数据连接类型的一种，可以和 MOBILE_TYPE 连接类型相同也可以不同，用于空中固件升级
 
     /**
      * IP Multimedia Subsystem.
      * {@hide}
      */
-    public static final int TYPE_MOBILE_IMS  = 11;
+    public static final int TYPE_MOBILE_IMS  = 11;//移动数据连接类型的一种，可以和 MOBILE_ TYPE连接类型相同也可以不同，用于IP多媒体子系统
 
     /**
      * Carrier Branded Services.
      * {@hide}
      */
-    public static final int TYPE_MOBILE_CBS  = 12;
+    public static final int TYPE_MOBILE_CBS  = 12;//移动数据连接类型的一种，可以和 MOBILE_ TYPE连接类型相同也可以不同，用于品牌服务
 
     /**
      * A Wi-Fi p2p connection. Only requesting processes will have access to
      * the peers connected.
      * {@hide}
      */
-    public static final int TYPE_WIFI_P2P    = 13;
+    public static final int TYPE_WIFI_P2P    = 13;//WIFI的P2P连接，仅对请求的进程可用
 
     /**
      * The network to use for initially attaching to the network
      * {@hide}
      */
-    public static final int TYPE_MOBILE_IA = 14;
+    public static final int TYPE_MOBILE_IA = 14;//用于刚连接的网络
 
     /** {@hide} */
     public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_IA;

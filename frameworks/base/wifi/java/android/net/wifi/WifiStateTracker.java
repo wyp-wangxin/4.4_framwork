@@ -61,11 +61,22 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
     private WifiManager mWifiManager;
 
     private SamplingDataTracker mSamplingDataTracker = new SamplingDataTracker();
+/*wwxx
+WifiStateTracker的构造方法中创建了3个对象, NetworkInfo、 LinkProperties 和 LinkCapabilities对象。这3种对象每种网络连接都会创建,
+应用可以通过ConnectivityService提供的 getNetworkInfo()、getAllNetworkInfo()、getLinkProperties()和 getAllNetworkState()等方法来获取网络连接的信息。
+ConnectivityService则通过 NetworkStateTracker对象的3个接口 (getNetworkInfo()、getLinkProperties()和 getLinkCapabilities()）来获取网络连接的这3个对象。
 
+NetworkInfo保存网络的类型、名称、状态等基本信息。
+
+LinkProperties保存用于连接的信息。
+
+LinkCapabilities 保存网络连接的能力。
+
+*/
     public WifiStateTracker(int netType, String networkName) {
         mNetworkInfo = new NetworkInfo(netType, 0, networkName, "");
         mLinkProperties = new LinkProperties();
-        mLinkCapabilities = new LinkCapabilities();
+        mLinkCapabilities = new LinkCapabilities();//各种能力以<key值，字符串>的形式保存在mCapabilities 中，例如网络的类型、上行带宽、下行带宽等。
 
         mNetworkInfo.setIsAvailable(false);
         setTeardownRequested(false);
@@ -80,8 +91,27 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
         return mTeardownRequested.get();
     }
 
-    /**
+    /** wwxx
      * Begin monitoring wifi connectivity
+    调用 startMonitoring()方法需要传递 Handler 对象作为参数， NetworkStateTracker 将通过该Handler对象向 ConnectivityService 发送网络状态事件。
+
+    startMonitoring()方法会建立和 WifiService的连接，WifiStateTracker中各种网络信息的获取实际上是从 WifiService中得到的，如下所示。
+
+                            WifiStateTracker --->  WifiManager --->  WifiService
+
+    ConnectivityService     MobileDataStateTracker ---> TelephonyManager ---> PhoneInterfaceManager
+
+                            EthernetDataTracker ---> INetworkManagementservice --->  NetworkManagementservice
+
+    NetworkStateTracker 除了提供获取网络信息的接口外，还提供 teardown()、reconnect()、setRadio()、setUserDataEnable()等方法来让用户进程通过ConnectivityService'实现对网络连接的控制。
+
+    在startMonitoring()方法中还创建了IntentFilter 和 WifiStateReceiver 对象。当用户通过Settings程序设置网络，例如打开、关闭WIFI、设置连接。
+    或者WIFI 的状态发生变化，可以通过这两个对象收到消息并处理。
+
+    ConnectivityService通过 NetworkStateTracker 对象的startMonitoring()函数启动数据连接的监控。
+
+    在 Settings 中可以设置网络连接，例如打开 wifi、打开 bluetooth、设置 apn的连接等，在设置完成后,设置的消息会存在一个数据库中保存，
+    并发送系统消息来广播网络设置的变化，WifiStateTracker对象能接收到通知，并通过参数Handler对象向ConnectivityService发送消息。可以看看WifiStateReceiver的实现处。
      */
     public void startMonitoring(Context context, Handler target) {
         mCsHandler = target;

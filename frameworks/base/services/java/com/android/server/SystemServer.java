@@ -456,7 +456,7 @@ class ServerThread {
             }
 
             if (!disableNetwork) {
-                try {
+                try {//SystemServer中创建NetworkManagementService服务的代码如下:
                     Slog.i(TAG, "NetworkManagement Service");
                     networkManagement = NetworkManagementService.create(context);
                     ServiceManager.addService(Context.NETWORKMANAGEMENT_SERVICE, networkManagement);
@@ -511,6 +511,9 @@ class ServerThread {
                 }
 
                 try {
+                    /*wwxx
+                    ConnectivityService服务是Android网络管理的中心，它也是在SystemServer中创建的，代码如下:
+                    */
                     Slog.i(TAG, "Connectivity Service");
                     connectivity = new ConnectivityService(
                             context, networkManagement, networkStats, networkPolicy);

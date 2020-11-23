@@ -110,22 +110,22 @@ public class NetworkInfo implements Parcelable {
         stateMap.put(DetailedState.BLOCKED, State.DISCONNECTED);
     }
 
-    private int mNetworkType;
-    private int mSubtype;
-    private String mTypeName;
-    private String mSubtypeName;
-    private State mState;
-    private DetailedState mDetailedState;
+    private int mNetworkType;       //网络类型
+    private int mSubtype;           //网络子类型
+    private String mTypeName;       //网络类型名称
+    private String mSubtypeName;    //网络子类型名称
+    private State mState;           //基本状态,连接、挂起、断开等
+    private DetailedState mDetailedState;   //更细化的状态
     private String mReason;
     private String mExtraInfo;
-    private boolean mIsFailover;
-    private boolean mIsRoaming;
+    private boolean mIsFailover;        //是否自动切换
+    private boolean mIsRoaming;         //是否在漫游
     private boolean mIsConnectedToProvisioningNetwork;
 
     /**
      * Indicates whether network connectivity is possible:
      */
-    private boolean mIsAvailable;
+    private boolean mIsAvailable;   //是否能使用
 
     /**
      * @param type network type

@@ -446,7 +446,69 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         // TODO: create here when we have cleaner WiMAX support
         this(context, netd, statsService, policyManager, null);
     }
+/*
+ConnectivityService 的构造方法非常长，这里就不看代码了。执行过程如下。
+(1) 创建处理消息的线程并启动。
+(2）创建处理消息的Handle对象mHandler、mTrackerHandler。
+(3）创建 DefaultNetworkFactory 对象，用来创建各种NetworkStateTracker对象。
+(4) 使用Android的ID设置net.hostname属性。这个属性将作为网络传输中的主机名。
+(5）从 Setting中或者系统资源Config.xml的config_default_dns_server项中得到DNS服务器的IP地址，保存到变量 mDefaultDns 中。
+(6) 保存对其他系统服务的引用,包括 NetworkManagementService、NetworkPolicyManagerService,PowerManagerService 和 PhoneInterfaceManager。
+(7）创建 wakelock对象 mNetTransitionWakeLock，在网络有数据传输时用来防止休眠。
+(8）创建 NetworkStateTracker对象的数组。
+(9) 从系统资源Config.xml读取 RadioAttributes 、networkAttributes、config_protectedNetworks 数组的值，分别用来初始化数组变量mRadioAttributes、mNetConfigs和 mProtectedNetworksa
+(10）根据mNetConfigs数组，计算各种网络类型的优先级，保存在mPriorityList列表中。
+(11）变量 mNetworkPreference表示系统中优先使用的网络，如果用户在Setting 程序中设置了优先网络，则使用用户设置的值;用户没有设置，则从mPriorityList列表按照从先到后的顺序挑选当前有效的网络类型。
+(12）创建各种网络连接的NetworkStateTracker对象，填充mNetTrackers 数组。
+(13）创建 Tethering 对象mTethering，用来共享网络。
+(14）创建监听用户状态变化Intent的 Receiver 对象。
+(15）创建 Nat464Xlat对象mClat，用于IPV4和 IPV6地址的转换。
+(16）将对象mTethering、mDataActivityObserver和 mClat注册为NetworkManagementService的观测者，监听网络硬件设备的变化。
+(17) 创建SettingsObserver对象mSettingsObserver，用来监视系统中 HTTP代理设置的变化。
+(18）创建DataConnectionStats对象mDataConnectionStats，并调用它的startMonitoring方法。
+(19) 启动一个系统Alarm，每隔60秒发送一个EVENT_SAMPLE_INTERVAL_ELAPSED消息，消息的处理将调用 handleNetworkSamplingTimeout方法来对网络接口中的数据进行采样。
+(20）创建PacManager对象mPacManager，用来绑定 PacService.
+(21) 创建 IntentFilter对象，监听 CONNECTED_TO_PROVISIONING_NETWORK_ACTION action。
 
+网络连接类型
+网络连接类型的定义位于 ConnectivityManager 类,它是 ConnectivityService 的代理类。Android系统一共定了14种网络连接的类型,见每个定义后的注解
+
+在这14 种网络连接类型中，有5种基本类型，分别是 TYPE_MOBILE、TYPE_WIFI、TYPE_WIMAX、TYPE_BLUETOOTH、TYPE_ETHERNET。
+这5种类型分别对应一种物理连接方式，提供基本的数据服务，系统中同时只能使用其中一种。
+
+另外的8种，TYPE_MOBILE_MMS、TYPE_MOBILE_SUPL、TYPE_MOBILE_DUN、TYPEMOBILE_HIPRI、TYPE_MOBILE_FOTA、TYPE_MOBILE_IMS、TYPE_MOBILE_CBS和 TYPEMOBILE_IA可以和前面的5种基本类型共存。
+其实这几种数据连接，包括TYPE_MOBILE，都只是移动运营商在移动网络上开辟的数据通道,运营商开辟这么多通道的用意是推广它们的服务，方便控制流量和费用结算。
+但是到底有几种连接能同时共存，则依赖于手机通信模块的能力。支持多个连接共存的好处是，我们用移动网络上网时，还可以同时下载彩信，否则如果下载App时，来了彩信，有可能会终止下载，或者无法接收彩信。
+
+具体的设备中可能不会支持所有这些连接类型，通过系统资源的Config.xml 中的 networkAttributes 数组，可以定义系统中支持的连接类型，如下所示:
+    <string-array translatable="false" name="networkAttributes">
+        <item>"wifi,1,1,1,-1,true"</item>
+        <item>"mobile,0,0,0,-1,true"</item>
+        <item>"mobile_mms,2,0,2,60000,true"</item>
+        <item>"mobile_supl,3,0,2,60000,true"</item>
+        <item>"mobile_hipri,5,0,3,60000,true"</item>
+        <item>"mobile_fota,10,0,2,60000,true"</item>
+        <item>"mobile_ims,11,0,2,60000,true"</item>
+        <item>"mobile_cbs,12,0,2,60000,true"</item>
+        <item>"wifi_p2p,13,1,0,-1,true"</item>
+        <item>"mobile_ia,14,0,2,-1,true"</item>
+    </string-array>
+上面数组元素中第一项是连接名称，第二项是连接类型，第三项表示是否是移动连接类型,第四项是优先级。
+下面看看 ConnectivityService 如何处理网络切换，网络切换在 handleConnect()方法中，代码如下:(就在本文件)
+
+
+
+
+NetworkStateTracker对象的作用—获得网络连接信息
+在ConnectivityService中，关键的数据结构是数组变量 mNetTrackers，它的元素是每种基本连接的NetworkStateTracker对象。
+ConnectivityService 通过 NetworkStateTracker 对象来获得网络连接的状态信息以及监测网络事件。
+ConnectivityService 中提供的对外接口，大多会转调这些 NetworkStateTracker 对象的方法。
+
+在ConnectivityService的构造方法中会创建所有系统中存在的网络连接的NetworkStateTracker对象，并调用它们的 startMonitoring()方法。
+
+通常手机设备中会存在wifi和mobile两种网络连接，下面以 wif连接的 WifiStateTracker 对象为例，看看它的构造方法和 startMonitoring()方法的实现。(见WifistateTracker.java)
+
+*/
     public ConnectivityService(Context context, INetworkManagementService netManager,
             INetworkStatsService statsService, INetworkPolicyManager policyManager,
             NetworkFactory netFactory) {
@@ -2307,9 +2369,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         }
         return true;
     }
-
+/*wwxx
+handleConnect()方法在某种网络的状态变成连接后会被调用，如果是基本的网络连接类型,则要和当前的网络类型进行比较，看谁的优先级高（当然如果用户指定的网络类型优先级最高),
+这种优先级是固定的,通常WIFI高于Mobile。
+*/
     private void handleConnect(NetworkInfo info) {
-        final int newNetType = info.getType();
+        final int newNetType = info.getType();//要切换的网络连接类型
 
         setupDataActivityTracking(newNetType);
 
@@ -2325,9 +2390,9 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
         // if this is a default net and other default is running
         // kill the one not preferred
-        if (mNetConfigs[newNetType].isDefault()) {
-            if (mActiveDefaultNetwork != -1 && mActiveDefaultNetwork != newNetType) {
-                if (isNewNetTypePreferredOverCurrentNetType(newNetType)) {
+        if (mNetConfigs[newNetType].isDefault()) {//如果是基本的网络连接类型
+            if (mActiveDefaultNetwork != -1 && mActiveDefaultNetwork != newNetType) {//如果和当前活动的网络连接不同
+                if (isNewNetTypePreferredOverCurrentNetType(newNetType)) {//如果新连接的优先级高
                     // tear down the other
                     NetworkStateTracker otherNet =
                             mNetTrackers[mActiveDefaultNetwork];
@@ -2335,12 +2400,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                         log("Policy requires " + otherNet.getNetworkInfo().getTypeName() +
                             " teardown");
                     }
-                    if (!teardown(otherNet)) {
+                    if (!teardown(otherNet)) {//关闭当前的网络连接
                         loge("Network declined teardown request");
-                        teardown(thisNet);
+                        teardown(thisNet);//关闭失败,则关闭新的网络连接
                         return;
                     }
-                } else {
+                } else {//如果新连接的优先级低,关闭新的网络连接
                        // don't accept this one
                         if (VDBG) {
                             log("Not broadcasting CONNECT_ACTION " +
@@ -2354,6 +2419,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 // have a new default network, release the transition wakelock in a second
                 // if it's held.  The second pause is to allow apps to reconnect over the
                 // new network
+                //如果用于传输的wakelock处于锁定状态，先释放1秒再锁定，这—秒的暂停可以让应用重新连接新网络
                 if (mNetTransitionWakeLock.isHeld()) {
                     mHandler.sendMessageDelayed(mHandler.obtainMessage(
                             EVENT_CLEAR_NET_TRANSITION_WAKELOCK,
@@ -2373,11 +2439,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             updateNetworkSettings(thisNet);
         }
         thisNet.setTeardownRequested(false);
-        updateMtuSizeSettings(thisNet);
+        updateMtuSizeSettings(thisNet);//更新连接的MTU值
         handleConnectivityChange(newNetType, false);
         sendConnectedBroadcastDelayed(info, getConnectivityChangeDelay());
 
         // notify battery stats service about this network
+        //如果网络切换了,通知BatteryService
         if (thisIface != null) {
             try {
                 BatteryStatsService.getService().noteNetworkInterfaceType(thisIface, newNetType);
