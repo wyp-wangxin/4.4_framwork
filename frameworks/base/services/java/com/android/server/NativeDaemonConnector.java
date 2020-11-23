@@ -68,10 +68,16 @@ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdo
     private final Object mDaemonLock = new Object();
 
     private final int BUFFER_SIZE = 4096;
+    /*
+    NativeDaemonConnector 的构造方法只是对成员变量进行了初始化，这里要注意 mScoket ，它是一个 String 类型的成员变量，它的值是通过参数传进来的，
+    构造 NativeDaemonConnector 对象时传递的参数是 “vold”。此外还要注意的是， mCallbacks 变量是 MountServer 的引用，下面的函数会使用它。
 
+    我们看看 NativeDaemonConnector 类的run()方法，它是 MountService 的构造中所启动线程的运行方法，代码如下:(public void run())
+
+    */
     NativeDaemonConnector(INativeDaemonConnectorCallbacks callbacks, String socket,
             int responseQueueSize, String logTag, int maxLogSize) {
-        mCallbacks = callbacks;
+        mCallbacks = callbacks;//这个callback就是 MountService
         mSocket = socket;
         mResponseQueue = new ResponseQueue(responseQueueSize);
         mSequenceNumber = new AtomicInteger(0);
@@ -83,7 +89,7 @@ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdo
     public void run() {
         mCallbackHandler = new Handler(FgThread.get().getLooper(), this);
 
-        while (true) {
+        while (true) {//run()方法进入了一个无限循环，反复调用listenToSocket()方法，代码如下:
             try {
                 listenToSocket();
             } catch (Exception e) {
@@ -104,7 +110,11 @@ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdo
             loge("Error handling '" + event + "': " + e);
         }
         return true;
-    }
+    }/*wwxx
+    handleMessage()方法处理消息就是调用mCallbacks的onEvent()方法,我们知道,这个mCallbacks实际上就是MountService对象，
+    这样从 Vold中发送来的消息就传递到了 MountService 中。
+
+    */
 
     private LocalSocketAddress determineSocketAddress() {
         // If we're testing, set up a socket in a namespace that's accessible to test code.
@@ -117,27 +127,39 @@ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdo
             return new LocalSocketAddress(mSocket, LocalSocketAddress.Namespace.RESERVED);
         }
     }
+/*
+listenToSocket()调用determineSocketAddress()方法来得到Vold中的socket地址，前面已经介绍了Vold进程的socket值是放在环境变量中的，
+这里通过前面的参数值“vold”来得到socket 的值，并创建LocalSocketAddress对象用于监听。
 
+和Vold进程中的socket连接后, listenToSocket()方法进入一个无限循环,在循环中读取 socket中的数据，收到的数据格式是以0结尾的字符串。
+这些字符串命令经parseRawEvent()方法解析成NativeDaemonEvent对象。
+从Vold中收到的消息有两种，一种是从Vold进程中主动发送的通知消息，例如USB设备插入的消息，另一种是对MountService发往Vold进程消息的回复，也就是发给Vold消息的返回结果。
+对于这两种消息，通过方法 isClassUnsolicited()可以区分，如果是Vold主动发送的消息，则通过 mCallbackHandler 把消息对象发送出去。
+如果是回复消息，先放到mResponseQueue队列中，在NativeDaemonConnector的 execute()方法结束时会把消息作为返回值返回。
+
+mCallbackHandler 发送的消息会在 NativeDaemonConnector的方法 handleMessage()中处理,代码如下(public boolean handleMessage(Message msg))
+*/
     private void listenToSocket() throws IOException {
         LocalSocket socket = null;
 
         try {
             socket = new LocalSocket();
-            LocalSocketAddress address = determineSocketAddress();
+            LocalSocketAddress address = determineSocketAddress();//得到socket的地址
 
-            socket.connect(address);
+            socket.connect(address);//连接Vold进程中的socket
 
-            InputStream inputStream = socket.getInputStream();
+            InputStream inputStream = socket.getInputStream();//得到Input对象
             synchronized (mDaemonLock) {
-                mOutputStream = socket.getOutputStream();
+                mOutputStream = socket.getOutputStream();//获得output对象
             }
 
-            mCallbacks.onDaemonConnected();
+            mCallbacks.onDaemonConnected();//调用MountService 的 onDaemonConnected
 
             byte[] buffer = new byte[BUFFER_SIZE];
             int start = 0;
 
-            while (true) {
+            while (true) {//又是一个无限循环
+                //从socket中读取数据,没数据时线程会挂起
                 int count = inputStream.read(buffer, start, BUFFER_SIZE - start);
                 if (count < 0) {
                     loge("got " + count + " reading with start = " + start);
@@ -149,19 +171,21 @@ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdo
                 start = 0;
 
                 for (int i = 0; i < count; i++) {
-                    if (buffer[i] == 0) {
+                    if (buffer[i] == 0) {//每条Vold发送的消息是以0结尾的字符串
                         final String rawEvent = new String(
                                 buffer, start, i - start, StandardCharsets.UTF_8);
                         log("RCV <- {" + rawEvent + "}");
 
-                        try {
+                        try {//解析命令
                             final NativeDaemonEvent event = NativeDaemonEvent.parseRawEvent(
                                     rawEvent);
                             if (event.isClassUnsolicited()) {
                                 // TODO: migrate to sending NativeDaemonEvent instances
+                                 //如果收到的是底层的通知消息，转发给MountService
                                 mCallbackHandler.sendMessage(mCallbackHandler.obtainMessage(
                                         event.getCode(), event.getRawEvent()));
                             } else {
+                                //如果收到的是返回结果，放到mResponseoueue中
                                 mResponseQueue.add(event.getCmdNumber(), event);
                             }
                         } catch (IllegalArgumentException e) {

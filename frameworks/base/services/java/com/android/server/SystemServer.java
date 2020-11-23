@@ -410,7 +410,7 @@ class ServerThread {
                      * (for media / usb notifications) so we must start MountService first.
                      */
                     Slog.i(TAG, "Mount Service");
-                    mountService = new MountService(context);
+                    mountService = new MountService(context);//MountService也是在 SystemServer中启动的，代码如下:
                     ServiceManager.addService("mount", mountService);
                 } catch (Throwable e) {
                     reportWtf("starting Mount Service", e);

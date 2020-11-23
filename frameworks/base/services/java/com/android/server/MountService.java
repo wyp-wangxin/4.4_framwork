@@ -1334,6 +1334,33 @@ class MountService extends IMountService.Stub
      * Constructs a new MountService instance
      *
      * @param context  Binder context for this service
+    wwxx
+    MountService 作为 SystemServer 中的一个Binder服务，它的作用是让用户进程能通过它的接口对系统的存储设备进行各种操作，包括mount、unmount和 format等，当然我们已经知道，
+    这些操作实际上是在 Vold 进程中完成的，MountService 只是把命令发送到了Vold进程中。
+
+    的构造方法如下:
+
+    MountService构造方法的工作是。
+    (1）获得 PackageManagerService 的引用，因为底层存储系统的变化会导致PackageManagerService重新扫描存储器，
+    因此，当存储器发生变化时，MountService 收到了底层的消息会通知PackageManagerService重新扫描。
+
+    (2)监听几种Intent,包括用户发生变化的Intent: ACTION_USER_ADDED和ACTION_USER_REMOVED;
+                     Usb 状态发生变化的Intent: ACTION_USB_STATE;
+                        以及系统空闲的 Intent:ACTION IDLE MAINTENANCE_START。
+
+    (3）创建ObbActionHandler对象，用于处理和Obb文件系统相关的消息。
+    
+    (4）创建 NativeDaemonConnector对象，用于和底层的Vold进程进行Socket通信。
+
+    (5）创建一个线程。这个线程的执行函数是NativeDaemonConnector对象的run()方法。                    
+
+
+
+
+
+    进行Socket通信——NativeDaemonConnector
+
+    NativeDaemonConnector对象用于和底层的 Vold进程进行Socket通信，它的构造方法如下:(NativeDaemonConnector.java)
      */
     public MountService(Context context) {
         mContext = context;
@@ -1343,19 +1370,21 @@ class MountService extends IMountService.Stub
         }
 
         // XXX: This will go away soon in favor of IMountServiceObserver
-        mPms = (PackageManagerService) ServiceManager.getService("package");
+        mPms = (PackageManagerService) ServiceManager.getService("package");//获得PackageManagerservice的应用
 
-        HandlerThread hthread = new HandlerThread(TAG);
+        HandlerThread hthread = new HandlerThread(TAG);//创建处理消息的线程
         hthread.start();
         mHandler = new MountServiceHandler(hthread.getLooper());
 
         // Watch for user changes
+        //监听用户变化的Intent
         final IntentFilter userFilter = new IntentFilter();
         userFilter.addAction(Intent.ACTION_USER_ADDED);
         userFilter.addAction(Intent.ACTION_USER_REMOVED);
         mContext.registerReceiver(mUserReceiver, userFilter, null, mHandler);
 
         // Watch for USB changes on primary volume
+        //监听USB状态的变化
         final StorageVolume primary = getPrimaryPhysicalVolume();
         if (primary != null && primary.allowMassStorage()) {
             mContext.registerReceiver(
@@ -1369,6 +1398,7 @@ class MountService extends IMountService.Stub
                 idleMaintenanceFilter, null, mHandler);
 
         // Add OBB Action Handler to MountService thread.
+        //创建 OBB Action的处理对象
         mObbActionHandler = new ObbActionHandler(IoThread.get().getLooper());
 
         /*
@@ -1376,8 +1406,9 @@ class MountService extends IMountService.Stub
          * amount of containers we'd ever expect to have. This keeps an
          * "asec list" from blocking a thread repeatedly.
          */
+        //创建和Vold连接的 NativeDaemonConnectorduix
         mConnector = new NativeDaemonConnector(this, "vold", MAX_CONTAINERS * 2, VOLD_TAG, 25);
-
+        //开启一个线程处理NativeDaemonconnector对象和底层的连接
         Thread thread = new Thread(mConnector, VOLD_TAG);
         thread.start();
 
