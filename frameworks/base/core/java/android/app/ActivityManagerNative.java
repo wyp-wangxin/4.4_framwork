@@ -73,7 +73,7 @@ public abstract class ActivityManagerNative extends Binder implements IActivityM
      * Retrieve the system's default/global activity manager.
      */
     static public IActivityManager getDefault() {
-        return gDefault.get();
+        return gDefault.get();///去看一下 getDefault变量的实现，在本文件 private static final Singleton<IActivityManager> 中
     }
 
     /**
@@ -397,7 +397,7 @@ public abstract class ActivityManagerNative extends Binder implements IActivityM
             return true;
         }
 
-        case ACTIVITY_IDLE_TRANSACTION: {
+        case ACTIVITY_IDLE_TRANSACTION: {//收到消息
             data.enforceInterface(IActivityManager.descriptor);
             IBinder token = data.readStrongBinder();
             Configuration config = null;
@@ -406,7 +406,7 @@ public abstract class ActivityManagerNative extends Binder implements IActivityM
             }
             boolean stopProfiling = data.readInt() != 0;
             if (token != null) {
-                activityIdle(token, config, stopProfiling);
+                activityIdle(token, config, stopProfiling);//这个函数在 ActivityManagerService 被重写,去看一下。
             }
             reply.writeNoException();
             return true;
@@ -2043,7 +2043,8 @@ public abstract class ActivityManagerNative extends Binder implements IActivityM
             if (false) {
                 Log.v("ActivityManager", "default service binder = " + b);
             }
-            IActivityManager am = asInterface(b);
+            IActivityManager am = asInterface(b);   //gDefault实际上是IActivityManager,class ActivityManagerProxy implements IActivityManager . 
+                                                    //ActivityManagerProxy 实现了 IActivityManager .那么am.activityIdle()就是 ActivityManagerProxy 里的函数,去ActivityManagerProxy看一下。
             if (false) {
                 Log.v("ActivityManager", "default service = " + am);
             }
@@ -2430,7 +2431,7 @@ class ActivityManagerProxy implements IActivityManager
             data.writeInt(0);
         }
         data.writeInt(stopProfiling ? 1 : 0);
-        mRemote.transact(ACTIVITY_IDLE_TRANSACTION, data, reply, IBinder.FLAG_ONEWAY);
+        mRemote.transact(ACTIVITY_IDLE_TRANSACTION, data, reply, IBinder.FLAG_ONEWAY);//发送了ACTIVITY_IDLE_TRANSACTION的进程间通信，这个消息被 ActivityManagerNative 接收处理了。
         reply.readException();
         data.recycle();
         reply.recycle();

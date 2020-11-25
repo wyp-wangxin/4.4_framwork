@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     ps->startThreadPool();
 
     // instantiate surfaceflinger
-    sp<SurfaceFlinger> flinger = new SurfaceFlinger();
+    sp<SurfaceFlinger> flinger = new SurfaceFlinger();// 创建surfaceflinger服务实例
 
 #if defined(HAVE_PTHREADS)
     setpriority(PRIO_PROCESS, 0, PRIORITY_URGENT_DISPLAY);
@@ -49,10 +49,10 @@ int main(int argc, char** argv) {
 
     // publish surface flinger
     sp<IServiceManager> sm(defaultServiceManager());
-    sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false);
+    sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false);//注册到service manager里
 
     // run in this thread
-    flinger->run();
+    flinger->run();//运行
 
     return 0;
 }

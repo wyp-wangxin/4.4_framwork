@@ -52,9 +52,9 @@ int main(int argc, char** argv)
         ProcessState::self()->startThreadPool();
 
         // create the boot animation object
-        sp<BootAnimation> boot = new BootAnimation();
+        sp<BootAnimation> boot = new BootAnimation();//创建BootAnimation实例
 
-        IPCThreadState::self()->joinThreadPool();
+        IPCThreadState::self()->joinThreadPool();//binder线程池，与surfaceflinger通信用的。然后看BootAnimation.cpp 的构造函数
 
     }
     return 0;

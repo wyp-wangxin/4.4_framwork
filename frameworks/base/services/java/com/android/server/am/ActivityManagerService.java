@@ -5137,7 +5137,7 @@ AMS构造方法的主要作用是创建出了4大组件 Activity.Service,Broadca
             ActivityStack stack = ActivityRecord.getStackLocked(token);
             if (stack != null) {
                 ActivityRecord r =
-                        mStackSupervisor.activityIdleInternalLocked(token, false, config);
+                        mStackSupervisor.activityIdleInternalLocked(token, false, config);//调用activityIdleInternalLocked函数 ,在ActivityStackSupervisor.java实现。
                 if (stopProfiling) {
                     if ((mProfileProc == r.app) && (mProfileFd != null)) {
                         try {
@@ -5155,7 +5155,7 @@ AMS构造方法的主要作用是创建出了4大组件 Activity.Service,Broadca
     void enableScreenAfterBoot() {
         EventLog.writeEvent(EventLogTags.BOOT_PROGRESS_ENABLE_SCREEN,
                 SystemClock.uptimeMillis());
-        mWindowManager.enableScreenAfterBoot();
+        mWindowManager.enableScreenAfterBoot();//调WindowManagerService类里的enableScreenAfterBoot()函数
 
         synchronized (this) {
             updateEventDispatchingLocked();

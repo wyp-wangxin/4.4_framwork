@@ -299,7 +299,7 @@ void SurfaceFlinger::bootFinished()
     // stop boot animation
     // formerly we would just kill the process, but we now ask it to exit so it
     // can choose where to stop the animation.
-    property_set("service.bootanim.exit", "1");
+    property_set("service.bootanim.exit", "1");//在这里设置了属性，表示要退出开机动画。然后bootanimation进程的checkExit()检测到就退出进程，停止播放。
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -624,7 +624,7 @@ void SurfaceFlinger::init() {
     initializeDisplays();
 
     // start boot animation
-    startBootAnim();
+    startBootAnim();//初始化graphics之后，就调用startBootAnim()播放开机动画。
 }
 
 int32_t SurfaceFlinger::allocateHwcDisplayId(DisplayDevice::DisplayType type) {
@@ -634,8 +634,8 @@ int32_t SurfaceFlinger::allocateHwcDisplayId(DisplayDevice::DisplayType type) {
 
 void SurfaceFlinger::startBootAnim() {
     // start boot animation
-    property_set("service.bootanim.exit", "0");
-    property_set("ctl.start", "bootanim");
+    property_set("service.bootanim.exit", "0");//这个会有bootanimation进程周期检测,=1退出动画
+    property_set("ctl.start", "bootanim");//通过ctl.start命令启动bootanim ，于是就进入 bootanimation_main.cpp main函数了
 }
 
 size_t SurfaceFlinger::getMaxTextureSize() const {

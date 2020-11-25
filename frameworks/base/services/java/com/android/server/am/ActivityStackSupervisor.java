@@ -1971,7 +1971,7 @@ public final class ActivityStackSupervisor {
         //mWindowManager.dump();
 
         if (enableScreen) {
-            mService.enableScreenAfterBoot();
+            mService.enableScreenAfterBoot();//调ActivityManagerService类的enableScreenAfterBoot()函数
         }
 
         if (activityRemoved) {

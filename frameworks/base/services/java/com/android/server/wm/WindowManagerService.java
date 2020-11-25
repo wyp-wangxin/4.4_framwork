@@ -317,7 +317,7 @@ public class WindowManagerService extends IWindowManager.Stub
 
     final boolean mLimitedAlphaCompositing;
 
-    /*WindowManagerPolicy（WMP）类型的变量。WindowManagerPolicy是窗口管理策略的接口类，
+    /*WindowManagerPolicy（WMP）类型的变量。WindowManagerPolicy 是窗口管理策略的接口类，
     用来定义一个窗口策略所要遵循的通用规范，并提供了WindowManager所有的特定的UI行为。
     它的具体实现类为PhoneWindowManager，这个实现类在WMS创建时被创建。WMP允许定制窗口层级和特殊窗口类型以及关键的调度和布局。*/
     final WindowManagerPolicy mPolicy = PolicyManager.makeNewWindowManager();
@@ -398,7 +398,7 @@ public class WindowManagerService extends IWindowManager.Stub
      * Windows that are being resized.  Used so we can tell the client about
      * the resize after closing the transaction in which we resized the
      * underlying surface.
-    ArrayList类型的变量，元素类型为WindowState。
+    ArrayList 类型的变量，元素类型为 WindowState。
     mResizingWindows是用来存储正在调整大小的窗口的列表。与mResizingWindows类似的还有mPendingRemove、mDestroySurface和mDestroyPreservedSurface等等。
     其中mPendingRemove是在内存耗尽时设置的，里面存有需要强制删除的窗口。
     mDestroySurface里面存有需要被Destroy的Surface。
@@ -591,9 +591,11 @@ public class WindowManagerService extends IWindowManager.Stub
     float mTransitionAnimationScale = 1.0f;
     float mAnimatorDurationScale = 1.0f;
 
-/*InputManagerService类型的变量，输入系统的管理者。InputManagerService（IMS）会对触摸事件进行处理，
+/*wwxx
+InputManagerService类型的变量，输入系统的管理者。InputManagerService（IMS）会对触摸事件进行处理，
 它会寻找一个最合适的窗口来处理触摸反馈信息，WMS是窗口的管理者，
-因此，WMS“理所应当”的成为了输入系统的中转站，WMS包含了IMS的引用不足为怪*/
+因此，WMS“理所应当”的成为了输入系统的中转站，WMS包含了IMS的引用不足为怪
+*/
     final InputManagerService mInputManager;
     final DisplayManagerService mDisplayManagerService;
     final DisplayManager mDisplayManager;
@@ -651,7 +653,7 @@ public class WindowManagerService extends IWindowManager.Stub
     /** Only do a maximum of 6 repeated layouts. After that quit */
     private int mLayoutRepeatCount;
 
-    final WindowAnimator mAnimator;//wwxx WindowAnimator类型的变量，用于管理窗口的动画以及特效动画。
+    final WindowAnimator mAnimator;//wwxx WindowAnimator 类型的变量，用于管理窗口的动画以及特效动画。
 
     SparseArray<Task> mTaskIdToTask = new SparseArray<Task>();
     SparseArray<TaskStack> mStackIdToStack = new SparseArray<TaskStack>();
@@ -1220,7 +1222,7 @@ public class WindowManagerService extends IWindowManager.Stub
         if (DEBUG_FOCUS_LIGHT) Slog.d(TAG, "addWindowToListInOrderLocked: win=" + win +
                 " Callers=" + Debug.getCallers(4));
    /*
-        先看窗口的父窗口mAttachedWindow是不是存在，如果不存在，说明这个窗口应用类型的窗口，反之就是一个子窗口，走else分之，
+        先看窗口的父窗口 mAttachedWindow 是不是存在，如果不存在，说明这个窗口应用类型的窗口，反之就是一个子窗口，走else分之，
         使用 addAttachedWindowToListLocked 方法将子窗口插入窗口列表。假设不是一个子窗口，那么需要取出这个窗口的 token,
         如果token里面的 appWindowToken 不为null的话，就表明这是一个Activity窗口，需要调用 addAppWindowToListLocked 将Activity窗口插入窗口堆栈，
         反之使用 addFreeWindowToListLocked 方法将非Activity窗口插入窗口堆栈。
@@ -2194,9 +2196,9 @@ wwxx
 １、窗口添加权限校验
 ２、检查特殊窗口attr.token和attr.type的一致性
 ３、创建窗口对象
-４、调用adjustWindowParamsLw对窗口参数进行调整
-５、创建pipe,用于输入消息的传递
-６、调用窗口的attach，初始化Surface相关的变量,将窗口win放到mWindowMap中
+４、调用adjustWindowParamsLw 对窗口参数进行调整
+５、创建 pipe,用于输入消息的传递
+６、调用窗口的 attach ，初始化Surface相关的变量,将窗口win放到mWindowMap中
 7、如果type == TYPE_APPLICATION_STARTING ，说明这个是启动窗口，把win赋值给token.appWindowToken.startingWindow 
 8、添加窗口到Windows列表，确定窗口的位置
 9、窗口已经添加了，调用assignLayersLocked调整一下层值
@@ -2210,8 +2212,8 @@ wwxx
 
         //１、窗口添加权限校验 
         /*
-从参数attrs中可以取出窗口的type,对type类型除了Toast窗口、屏保窗口、输入法窗口、墙纸窗口、语音交互窗口等少数几个类型窗口不需要进行权限判断外，
-其余的窗口都需要检查是否有android.Manifest.permission.SYSTEM_ALERT_WINDOW权限或者 android.Manifest.permission.INTERNAL_SYSTEM_WINDOW权限。
+            从参数attrs中可以取出窗口的type,对type类型除了Toast窗口、屏保窗口、输入法窗口、墙纸窗口、语音交互窗口等少数几个类型窗口不需要进行权限判断外，
+            其余的窗口都需要检查是否有android.Manifest.permission.SYSTEM_ALERT_WINDOW权限或者 android.Manifest.permission.INTERNAL_SYSTEM_WINDOW权限。
         */
         int[] appOp = new int[1];
         int res = mPolicy.checkAddPermission(attrs, appOp);
@@ -5388,7 +5390,7 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
 
         mPolicy.systemBooted();
 
-        performEnableScreen();
+        performEnableScreen();//跑这里
     }
 
     void enableScreenIfNeededLocked() {
@@ -5520,7 +5522,7 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
                     //Slog.i(TAG, "******* TELLING SURFACE FLINGER WE ARE BOOTED!");
                     Parcel data = Parcel.obtain();
                     data.writeInterfaceToken("android.ui.ISurfaceComposer");
-                    surfaceFlinger.transact(IBinder.FIRST_CALL_TRANSACTION, // BOOT_FINISHED
+                    surfaceFlinger.transact(IBinder.FIRST_CALL_TRANSACTION, // BOOT_FINISHED ，开机动画结束会跑到这儿 。BnSurfaceComposer会收到这个消息
                                             data, null, 0);
                     data.recycle();
                 }

@@ -67,17 +67,18 @@ namespace android {
 
 BootAnimation::BootAnimation() : Thread(false)
 {
-    mSession = new SurfaceComposerClient();
+    mSession = new SurfaceComposerClient();//创建实例时，构造函数就会被调用，new一个SurfaceComposerClient实例，他是用来与surfaceflinger通信的
 }
 
 BootAnimation::~BootAnimation() {
 }
 
 void BootAnimation::onFirstRef() {
-    status_t err = mSession->linkToComposerDeath(this);
+    status_t err = mSession->linkToComposerDeath(this);//注册surfaceflinger死亡消息的通知书 。linkTocomposerDeath的作用是当surfaceflinger死掉是，BootAnimation就会得到通知。
+    // 见（void BootAnimation::binderDied） 如下，收到通知后就退出动画了，因为surfaceflinger都挂掉了，播放不了了。
     ALOGE_IF(err, "linkToComposerDeath failed (%s) ", strerror(-err));
     if (err == NO_ERROR) {
-        run("BootAnimation", PRIORITY_DISPLAY);
+        run("BootAnimation", PRIORITY_DISPLAY);//开跑 起来
     }
 }
 
@@ -93,7 +94,7 @@ void BootAnimation::binderDied(const wp<IBinder>& who)
 
     // calling requestExit() is not enough here because the Surface code
     // might be blocked on a condition variable that will never be updated.
-    kill( getpid(), SIGKILL );
+    kill( getpid(), SIGKILL );// 收到surfaceflinger死亡的消息，好吧自己也跟着去了。
     requestExit();
 }
 
@@ -214,7 +215,52 @@ status_t BootAnimation::initTexture(void* buffer, size_t len)
     return NO_ERROR;
 }
 
-status_t BootAnimation::readyToRun() {
+
+/*
+
+前面void BootAnimation::onFirstRef 里面调用的run，就会触发父类的run被调用
+
+status_t Thread::run(const char* name, int32_t priority, size_t stack)
+{
+    ...
+    
+    if (mCanCallJava) {
+        res = createThreadEtc(_threadLoop,//创建线程
+                this, name, priority, stack, &mThread);
+    } else {
+        res = androidCreateRawThreadEtc(_threadLoop,
+                this, name, priority, stack, &mThread);
+    }
+    ....
+}
+
+
+
+int Thread::_threadLoop(void* user)
+{
+....
+    do {
+        bool result;
+        if (first) {
+            first = false;
+            self->mStatus = self->readyToRun();//这个函数被bootanimation重写了
+            result = (self->mStatus == NO_ERROR);
+
+            if (result && !self->exitPending()) {
+                ...
+                result = self->threadLoop();//这个函数被bootanimation重写了
+            }
+        } else {
+            result = self->threadLoop();
+        }
+
+        ...
+    
+    return 0;
+}
+*/
+
+status_t BootAnimation::readyToRun() {//这个函数是从写 父类thread的
     mAssets.addDefaultAssets();
 
     sp<IBinder> dtoken(SurfaceComposerClient::getBuiltInDisplay(
@@ -296,9 +342,9 @@ bool BootAnimation::threadLoop()
 {
     bool r;
     if (mAndroidAnimation) {
-        r = android();
+        r = android();//显示android默认动画
     } else {
-        r = movie();
+        r = movie();//显示自定义的动画，去看看
     }
 
     // No need to force exit anymore
@@ -383,10 +429,14 @@ bool BootAnimation::android()
 void BootAnimation::checkExit() {
     // Allow surface flinger to gracefully request shutdown
     char value[PROPERTY_VALUE_MAX];
-    property_get(EXIT_PROP_NAME, value, "0");
+    property_get(EXIT_PROP_NAME, value, "0");//属性为1，说明要退出了,这个属性就是等到launcher跑起来后就会置1.
+                                            //当launcher应用程序主线程跑起来后，如果主线程处于空闲，就会向ActivityManagerService发送一个activityIdle的消息。
+                                             //应用程序主线程是ActivityThread.java来描述的，activityIdle 是 Idler 这个类来实现的,我们去看看。在./base/core/java/android/app/ActivityThread.java文件里
     int exitnow = atoi(value);
     if (exitnow) {
-        requestExit();
+        requestExit(); //requestExit 在threads父类里面，在 system/core/libutils/Threads.cpp 文件里面
+
+
     }
 }
 
@@ -493,7 +543,7 @@ bool BootAnimation::movie()
 
     Region clearReg(Rect(mWidth, mHeight));
     clearReg.subtractSelf(Rect(xc, yc, xc+animation.width, yc+animation.height));
-
+    //下面是循环显示 
     for (int i=0 ; i<pcount ; i++) {
         const Animation::Part& part(animation.parts[i]);
         const size_t fcount = part.frames.size();
@@ -552,7 +602,7 @@ bool BootAnimation::movie()
                     } while (err<0 && errno == EINTR);
                 }
 
-                checkExit();
+                checkExit();//检测是否退出动画，进去看一下
             }
 
             usleep(part.pause * ns2us(frameDuration));

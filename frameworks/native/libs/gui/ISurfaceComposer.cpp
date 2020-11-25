@@ -273,7 +273,7 @@ status_t BnSurfaceComposer::onTransact(
         }
         case BOOT_FINISHED: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            bootFinished();
+            bootFinished(); //bootFinished()被SurfaceFlinger类重写了
             return NO_ERROR;
         }
         case CAPTURE_SCREEN: {

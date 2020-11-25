@@ -1487,7 +1487,7 @@ scheduleSleeping()方法只是发送了消息SLEEPING，所有消息都在Handle
             }
             if (a != null) {
                 mNewActivities = null;
-                IActivityManager am = ActivityManagerNative.getDefault();
+                IActivityManager am = ActivityManagerNative.getDefault();//这个方法可以依托开机动画这一节分析一下。进去看一下
                 ActivityClientRecord prev;
                 do {
                     if (localLOGV) Slog.v(
