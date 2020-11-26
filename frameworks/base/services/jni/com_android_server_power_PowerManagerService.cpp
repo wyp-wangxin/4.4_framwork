@@ -137,7 +137,9 @@ void android_server_PowerManagerService_goToSleep(nsecs_t eventTime) {
 }
 
 // ----------------------------------------------------------------------------
-
+/*wwxx
+nativeInit() 函数的主要工作是装载“Power”模块，然后调用了模块的初始化函数 init()。
+*/
 static void nativeInit(JNIEnv* env, jobject obj) {
     gPowerManagerServiceObj = env->NewGlobalRef(obj);
 
@@ -156,7 +158,65 @@ static void nativeSetPowerState(JNIEnv* env,
     gScreenOn = screenOn;
     gScreenBright = screenBright;
 }
+/*wwxx
+这两个native层的函数又分别调用了 acquire_wake_lock() 和 release_wake_lock() 函数来实现其功能,代码如下。
 
+acquire_wake_lock 的实现在 /hardware/libhardware_legacy/power/power.c 文件里
+
+int
+acquire_wake_lock(int lock, const char* id)
+{
+    initialize_fds();
+    if (g_error) return g_error;
+
+    int fd;
+
+    if (lock == PARTIAL_WAKE_LOCK) {//只支持PARTIAL_WAKE_LOCK
+        fd = g_fds[ACQUIRE_PARTIAL_WAKE_LOCK];
+    }
+    else {
+        return EINVAL;
+    }
+    return write(fd, id, strlen(id));
+}
+
+
+从power.c两个函数的实现可以看到，不管是 acquire_wake_lock() 函数还是 release_wake_lock()都是通过向不同的驱动文件中写数据来实现其功能的，
+这里写的数据就是前面的构造方法中创建变量时传递的参数“PowerManagerService.WakeLocks”和“PowerManagerService.Display”。
+那么acquire()和 release()中使用的文件设备句柄是如何创建的呢?我们看看 initialize_fds() 函数，(power.c里面)如下所示:
+
+static inline void initialize_fds(void)
+{
+    // XXX: should be this:
+    //pthread_once(&g_initialized, open_file_descriptors);
+    // XXX: not this:
+    if (g_initialized == 0) {
+        if(open_file_descriptors(NEW_PATHS) < 0)
+            open_file_descriptors(OLD_PATHS);
+        g_initialized = 1;
+    }
+}
+
+initialize_fds()函数先打开 NEW_PATHS 数组中的设备文件，不成功再打开 OLD_PATHS 数组中的设备文件，两个数组的定义如下:
+const char * const OLD_PATHS[] = {
+    "/sys/android_power/acquire_partial_wake_lock",
+    "/sys/android_power/release_wake_lock",
+};
+
+const char * const NEW_PATHS[] = {
+    "/sys/power/wake_lock",
+    "/sys/power/wake_unlock",
+};
+
+因此，Android 实现防止系统休眠的功能是通过向设备文件“/sys/power/wake_lock” 中写数据来完成的，如果写的是“PowerManagerService.WakeLocks”，系统将不能进入休眠状态，
+
+但是屏幕会关闭，
+
+如果写的是“PowerManagerService.Display”字串，则连屏幕也不会关闭。
+
+如果系统要恢复休眠，再向设备文件“/sys/power/wake_unlock”中写入同样的字符串就可以了。
+
+*/ 
 static void nativeAcquireSuspendBlocker(JNIEnv *env, jclass clazz, jstring nameStr) {
     ScopedUtfChars name(env, nameStr);
     acquire_wake_lock(PARTIAL_WAKE_LOCK, name.c_str());

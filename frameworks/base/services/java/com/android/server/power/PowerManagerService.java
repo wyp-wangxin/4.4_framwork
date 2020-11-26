@@ -389,6 +389,19 @@ public final class PowerManagerService extends IPowerManager.Stub
 
     public PowerManagerService() {
         synchronized (mLock) {
+            /*wwxx
+                PowerManagerService 的构造方法首先创建了处理消息的线程和发送消息的 PowerManagerHandler 对象。
+                接着创建了 mWakeLockSuspendBlocker 、 mDisplayBlanker 对象（后面会介绍它们的作用)。
+
+                变量 mWakefulness 的值被设置成 WAKEFULNESS_AWAKE，它用来表示 PowerManagerService的状态,一共有4种定义。
+
+                WAKEFULNESS_ASLEEP:表示系统目前处于休眠状态，只能被wakeUp()调用唤醒。
+                WAKEFULNESS_AWAKE:表示系统目前处于正常运行状态。
+                WAKEFULNESS_DREAMING:表示系统正处于播放屏保的状态。
+                WAKEFULNESS_DOZING:表示系统正处于“doze”状态。这种状态下只有低耗电的“屏保”可以运行，其他应用进程都被挂起。
+
+                最后，构造方法调用了nativeInit()方法，它在native层对应的函数如下。去看看
+            */
             mWakeLockSuspendBlocker = createSuspendBlockerLocked("PowerManagerService.WakeLocks");
             mDisplaySuspendBlocker = createSuspendBlockerLocked("PowerManagerService.Display");
             mDisplaySuspendBlocker.acquire();
@@ -396,7 +409,7 @@ public final class PowerManagerService extends IPowerManager.Stub
 
             mScreenOnBlocker = new ScreenOnBlockerImpl();
             mDisplayBlanker = new DisplayBlankerImpl();
-            mWakefulness = WAKEFULNESS_AWAKE;
+            mWakefulness = WAKEFULNESS_AWAKE; // wwxx 设置PowerManagerService的状态
         }
 
         nativeInit();
@@ -437,21 +450,34 @@ public final class PowerManagerService extends IPowerManager.Stub
             mPolicy = policy;
         }
     }
+    /*wwxx
+    SystemServer 创建 PowerManagerService 后，还会调用它的 SystemReady() 方法，相当于在系统准备就绪后对 PowerManagerService 再进行一些初始化工作。SystemReady()方法的代码如下。
 
+    SystemReadyO方法完成的主要工作如下。
+    获取缺省、最大、最小3种屏幕亮度。
+    创建SystemSensorManager对象，用于和 SensorService交互。SensorService是一个native的Service，也存在于SystemServer进程中，它管理着Android上的各种传感设备。
+    创建 Notifer 对象。Notifer 对象用于广播系统中和 power 相关的变化，例如，屏幕的关闭和打开等。
+    创建 WirelessChargerDetector 对象，用于无线充电检测的传感器。
+    调用 DisplayManagerService 的 initPowerManagement() 方法来初始化Power管理模块。注册Observer监听系统设置的变化。在Android的设置模块中，很多设置项都和
+        PowerManagerService有关，包括屏幕的亮度、自动关闭屏幕的时间、能否启动“屏保”等。
+    监听其他模块广播的 Intent。PowerManagerService需要关注系统的变化，这里注册了很多系统广播的接收器。包括系统启动完成、“屏保”启动和关闭、用户切换、Dock插拔等。
+    */
     public void systemReady(TwilightService twilight, DreamManagerService dreamManager) {
         synchronized (mLock) {
             mSystemReady = true;
             mDreamManager = dreamManager;
 
             PowerManager pm = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
+            //获取缺省、最大、最小屏幕亮度
             mScreenBrightnessSettingMinimum = pm.getMinimumScreenBrightnessSetting();
             mScreenBrightnessSettingMaximum = pm.getMaximumScreenBrightnessSetting();
             mScreenBrightnessSettingDefault = pm.getDefaultScreenBrightnessSetting();
-
+            //创建sensorManager对象，用于和 SensorService交互
             SensorManager sensorManager = new SystemSensorManager(mContext, mHandler.getLooper());
 
             // The notifier runs on the system server's main looper so as not to interfere
             // with the animations and other critical functions of the power manager.
+            //创建Notifer对象
             mNotifier = new Notifier(Looper.getMainLooper(), mContext, mBatteryStats,
                     mAppOps, createSuspendBlockerLocked("PowerManagerService.Broadcasts"),
                     mScreenOnBlocker, mPolicy);
@@ -466,10 +492,12 @@ public final class PowerManagerService extends IPowerManager.Stub
             mWirelessChargerDetector = new WirelessChargerDetector(sensorManager,
                     createSuspendBlockerLocked("PowerManagerService.WirelessChargerDetector"),
                     mHandler);
+            //创建监听系统设置项变化的对象
             mSettingsObserver = new SettingsObserver(mHandler);
             mAttentionLight = mLightsService.getLight(LightsService.LIGHT_ID_ATTENTION);
 
             // Register for broadcasts from other components of the system.
+            //监听其他模块广播的Intent
             IntentFilter filter = new IntentFilter();
             filter.addAction(Intent.ACTION_BATTERY_CHANGED);
             mContext.registerReceiver(new BatteryReceiver(), filter, null, mHandler);
@@ -479,19 +507,20 @@ public final class PowerManagerService extends IPowerManager.Stub
             mContext.registerReceiver(new BootCompletedReceiver(), filter, null, mHandler);
 
             filter = new IntentFilter();
-            filter.addAction(Intent.ACTION_DREAMING_STARTED);
-            filter.addAction(Intent.ACTION_DREAMING_STOPPED);
+            filter.addAction(Intent.ACTION_DREAMING_STARTED);//屏保启动
+            filter.addAction(Intent.ACTION_DREAMING_STOPPED);//屏保关闭
             mContext.registerReceiver(new DreamReceiver(), filter, null, mHandler);
 
             filter = new IntentFilter();
-            filter.addAction(Intent.ACTION_USER_SWITCHED);
+            filter.addAction(Intent.ACTION_USER_SWITCHED);//用户切换
             mContext.registerReceiver(new UserSwitchedReceiver(), filter, null, mHandler);
 
             filter = new IntentFilter();
-            filter.addAction(Intent.ACTION_DOCK_EVENT);
+            filter.addAction(Intent.ACTION_DOCK_EVENT);/lDock插拔事件
             mContext.registerReceiver(new DockReceiver(), filter, null, mHandler);
 
             // Register for settings changes.
+            //监听设置的变化
             final ContentResolver resolver = mContext.getContentResolver();
             resolver.registerContentObserver(Settings.Secure.getUriFor(
                     Settings.Secure.SCREENSAVER_ENABLED),
@@ -638,9 +667,9 @@ public final class PowerManagerService extends IPowerManager.Stub
 			//PMS中的WakeLock类
             WakeLock wakeLock;
 			 //查找是否已存在该PM.WakeLock实例
-            int index = findWakeLockIndexLocked(lock);
+            int index = findWakeLockIndexLocked(lock);//检查这个lock是否已经存在
 			 //是否存在wakelock
-            if (index >= 0) {
+            if (index >= 0) {//lock已经存在
                 wakeLock = mWakeLocks.get(index);
                 if (!wakeLock.hasSameProperties(flags, tag, ws, uid, pid)) {
                     // Update existing wake lock.  This shouldn't happen but is harmless.
@@ -673,6 +702,16 @@ public final class PowerManagerService extends IPowerManager.Stub
             updatePowerStateLocked();
         }
     }
+    /*
+    wwxx
+
+    acquireWakeLockInternal()方法的主要工作是创建WakeLock对象并加入到 mWakeLocks 列表中，这个列表中包含了系统中所有 WakeLock 对象。
+
+    但是如果 mWakeLocks 列表中已经存在具有相同 token 的 WakeLock 对象,则只更新其属性值,不会再创建对象，这个token是用户进程调用gotoSleep()接口时的参数:用户进程中的 WakeLock对象。
+
+    创建或更新 WakeLcok 对象后，接下来调用 applyWakeLockFlagsOnAcquireLocked()方法，这个方法只是调用了 wakeUpNoUpdateLocked()方法，wakeUpNoUpdateLocked()方法的代码如下。去看看
+
+    */
 
     @SuppressWarnings("deprecation")
     private static boolean isScreenLock(final WakeLock wakeLock) {
@@ -691,7 +730,11 @@ public final class PowerManagerService extends IPowerManager.Stub
             wakeUpNoUpdateLocked(SystemClock.uptimeMillis());
         }
     }
+/*wwxx
+下面再看看PowerManagerService的releaseWakeLock()接口，这个接口也只是调用了PMS内部方法releaseWakeLockInternal()，代码如下。
 
+
+*/
     @Override // Binder call
     public void releaseWakeLock(IBinder lock, int flags) {
         if (lock == null) {
@@ -707,7 +750,14 @@ public final class PowerManagerService extends IPowerManager.Stub
             Binder.restoreCallingIdentity(ident);
         }
     }
+/*wwxx
+releaseWakeLockInternal()方法的实现很简单，首先查找 lock 在 mWakeLocks 中的 index，然后从 mWakeLocks 中得到 WakeLock 对象，最后调用 removeWakeLockLocked() 方法释放锁，方法代码如下。
 
+removeWakeLockLocked() 方法首先从 mWakeLocks 中移除 WakeLock 对象并发出通知，接着调用 WakeLockFlagsOnReleaseLocked() 方法，4.4不是这个方法,
+
+最后 mDirty 的值被设置成 DIRTY_WAKE_LOCKS ，然后调用 updatePowerStateLocked 方法。
+
+*/
     private void releaseWakeLockInternal(IBinder lock, int flags) {
         synchronized (mLock) {
             int index = findWakeLockIndexLocked(lock);
@@ -886,7 +936,16 @@ public final class PowerManagerService extends IPowerManager.Stub
             }
         }
     }
+/*wwxx
+报告用户活动--userActivity 接口
 
+PowerManger 是 PowerManagerService 的代理类，它提供了一些接口让用户进程可以和PowerManagerService交互，下面我们通过分析这些接口的实现来更进一步了解PMS的工作。
+
+接口 userActivity() 用于用户进程向 PowerManagerService 报告用户影响系统休眠的活动，
+例如，用户点击屏幕时，系统会调用该方法来告诉 PowerManagerService 用户点击的时间，这样PowerManagerService将更新内部保存的时间值，从而推迟系统休眠的时间。
+
+userActivity() 方法主要通过调用内部的 userActivityInternal() 方法来完成工作，方法的代码如 本文件的实现处。
+*/
     @Override // Binder call
     public void userActivity(long eventTime, int event, int flags) {
         final long now = SystemClock.uptimeMillis();
@@ -925,7 +984,12 @@ public final class PowerManagerService extends IPowerManager.Stub
     private void userActivityFromNative(long eventTime, int event, int flags) {
         userActivityInternal(eventTime, event, flags, Process.SYSTEM_UID);
     }
+/*wwxx 
+userActivityInternal() 先调用了 userActivityNoUpdateLocked() 方法，然后再调用 updatePowerStateLocked()方法。
+userActivityNoUpdateLocked()方法只是把参数保存到内部变量中，并不会采取任何动作，而 PowerManagerService中核心的方法是updatePowerStateLocked()。
 
+先去看看userActivityNoUpdateLocked 函数的实现，
+*/
     private void userActivityInternal(long eventTime, int event, int flags, int uid) {
         synchronized (mLock) {
             if (userActivityNoUpdateLocked(eventTime, event, flags, uid)) {
@@ -933,7 +997,10 @@ public final class PowerManagerService extends IPowerManager.Stub
             }
         }
     }
-
+/*wwxx
+userActivityNoUpdateLocked() 方法主要的工作是更新几个内部变量。其中 mLastUserActivityTime 变量和 mLastUserActivityTimeNoChangeLights 变量用来记录调用userActivity()方法的时间, 
+mDirty 用来记录用户的操作类型，这些变量的值在updatePowerStateLocked()方法中将会作为是否要执行睡眠或唤醒操作的依据。
+*/
     private boolean userActivityNoUpdateLocked(long eventTime, int event, int flags, int uid) {
         if (DEBUG_SPEW) {
             Slog.d(TAG, "userActivityNoUpdateLocked: eventTime=" + eventTime
@@ -946,7 +1013,7 @@ public final class PowerManagerService extends IPowerManager.Stub
             return false;
         }
 
-        mNotifier.onUserActivity(event, uid);
+        mNotifier.onUserActivity(event, uid);//发出通知
 
         if ((flags & PowerManager.USER_ACTIVITY_FLAG_NO_CHANGE_LIGHTS) != 0) {
             if (eventTime > mLastUserActivityTimeNoChangeLights
@@ -993,7 +1060,12 @@ public final class PowerManagerService extends IPowerManager.Stub
             }
         }
     }
+/*wwxx
 
+wakeUpNoUpdateLocked() 方法首先调用 mNotifier 变量的 onWakeUpStarted() 函数，然后修改成员变量 mLastWakeTime、 mWakefulness 和 mDirty 的值。
+ 
+最后 wakeUpNoUpdateLocked() 方法还调用了 userActivityNoUpdateLocked()，这个方法前面介绍 userActivity 接口时已经介绍过，这里调用它相当于又更新了变量 mLastUserActivityTime 的值。
+*/
     private boolean wakeUpNoUpdateLocked(long eventTime) {
         if (DEBUG_SPEW) {
             Slog.d(TAG, "wakeUpNoUpdateLocked: eventTime=" + eventTime);
@@ -1027,7 +1099,14 @@ public final class PowerManagerService extends IPowerManager.Stub
                 eventTime, PowerManager.USER_ACTIVITY_EVENT_OTHER, 0, Process.SYSTEM_UID);
         return true;
     }
+/*wwxx
+强制系统进入休眠模式——gotoSleep接口
 
+gotoSleep()用来强制系统进入休眠模式。通常当系统一段时间无人操作后，系统将调用gotoSleep()接口来进入休眠模式。
+PowerManagerService 的 gotoSleep()接口主要是调用内部方法goToSleepInternal()来完成其功能,方法的代码见实现处。
+
+
+*/
     @Override // Binder call
     public void goToSleep(long eventTime, int reason) {
         if (eventTime > SystemClock.uptimeMillis()) {
@@ -1048,7 +1127,11 @@ public final class PowerManagerService extends IPowerManager.Stub
     private void goToSleepFromNative(long eventTime, int reason) {
         goToSleepInternal(eventTime, reason);
     }
+/*wwxx
+goToSleepInternal()代码的结构和前面的 userActivity 类似，都是先调用另一个内部方法，然后再调用 updatePowerStateLocked() 方法，我们先看看 goToSleepNoUpdateLocked()  方法，代码如下。
 
+
+*/
     private void goToSleepInternal(long eventTime, int reason) {
         synchronized (mLock) {
             if (goToSleepNoUpdateLocked(eventTime, reason)) {
@@ -1056,7 +1139,21 @@ public final class PowerManagerService extends IPowerManager.Stub
             }
         }
     }
+/*wwxx
+goToSleepNoUpdateLocked()也非常简单，只是发送了将要休眠的通知，然后修改了成员变量mDirty、mLastSleepTime和 mWakefulness的值。
+更多实际的工作还是在updatePowerStateLocked()方法中完成的。下面先了解WakeLock机制,然后再分析这个方法。
 
+控制系统的休眠机制
+Android 设备的休眠和唤醒主要基于WakeLock机制。WakeLock是一种上锁机制，只要有进程获得了WakeLock锁系统就不会进入休眠。
+例如，在下载文件或播放歌曲时，即使休眠时间到了，系统也不能进行休眠。WakeLock可以设置超时，超时到后会自动解锁。
+
+应用使用 WakeLock 功能前，需要先使用 newWakeLock() 接口创建一个 WakeLock 类的对象，
+然后通过它的 acquire() 方法禁止系统休眠，应用完成工作后应该调用 release() 方法来恢复休眠机制，否则系统将无法休眠,直到耗光所有电量。
+
+WakeLock 类中实现 acquire()和 release()方法.实际上是先调用了 PowerManagerService 的 acquireWakeLock()和 releaseWakeLock()方法。 这两个方法处都有笔记。
+
+
+*/
     @SuppressWarnings("deprecation")
     private boolean goToSleepNoUpdateLocked(long eventTime, int reason) {
         if (DEBUG_SPEW) {
@@ -1129,7 +1226,11 @@ public final class PowerManagerService extends IPowerManager.Stub
             }
         }
     }
-
+    /*wwxx
+    如果if语句中4项表达式有一项为true，这整个方法会返回false。但是，如果是循环中第一次调用该方法，则4项正常情况下都为false，其实前面已经进行过类似的判断了，
+    如果成立就不会调用到这里。这样执行的结果就是改变了 mDirty 和 mWakefulness 的值，既然 mWakefulness 的值发生了改变， 那么循环中第二次调用本方法时， 肯定会返回false，
+    这样就结束了 updatePowerStateLocked() 方法中的循环。
+    */
     private boolean napNoUpdateLocked(long eventTime) {
         if (DEBUG_SPEW) {
             Slog.d(TAG, "napNoUpdateLocked: eventTime=" + eventTime);
@@ -1155,6 +1256,13 @@ public final class PowerManagerService extends IPowerManager.Stub
      * each time something important changes, and ensure that we do it the same
      * way each time.  The point is to gather all of the transition logic here.
      */
+
+    /*wwxx
+    理解updatePowerStateLocked方法 
+
+    updatePowerStateLocked()方法是 PowerManagerService 的核心，前面分析的接口调用都只是在更新服务中的某些成员变量的值，最后都需要调用 updatePowerStateLocked() 方法。方法的代码如下:
+
+    */
     private void updatePowerStateLocked() {
         if (!mSystemReady || mDirty == 0) {
             return;
@@ -1164,12 +1272,15 @@ public final class PowerManagerService extends IPowerManager.Stub
         }
 
         // Phase 0: Basic state updates.
-        updateIsPoweredLocked(mDirty);
-        updateStayOnLocked(mDirty);
+        //更新基本状态
+        updateIsPoweredLocked(mDirty);//更新 mIsPowered, mPlugType , mBatteryLevel
+        updateStayOnLocked(mDirty);//更新 mStayon
 
         // Phase 1: Update wakefulness.
         // Loop because the wake lock and user activity computations are influenced
         // by changes in wakefulness.
+
+        //更新 wakefulness.
         final long now = SystemClock.uptimeMillis();
         int dirtyPhase2 = 0;
         for (;;) {
@@ -1185,12 +1296,13 @@ public final class PowerManagerService extends IPowerManager.Stub
         }
 
         // Phase 2: Update dreams and display power state.
+        //更新屏保状态
         updateDreamLocked(dirtyPhase2);//该方法用来更新设备Dream状态，比如是否继续屏保、Doze或者开始休眠，这个方法中异步处理该过程(因此，这里在唤醒或休眠时有风险)
 		//和Display交互，请求Display状态
-        updateDisplayPowerStateLocked(dirtyPhase2);
+        updateDisplayPowerStateLocked(dirtyPhase2);//更新显示设备的状态
 
         // Phase 3: Send notifications, if needed.
-        if (mDisplayReady) {
+        if (mDisplayReady) {//发送通知
             sendPendingNotificationsLocked();
         }
 
@@ -1206,7 +1318,54 @@ public final class PowerManagerService extends IPowerManager.Stub
         这个方法就是用来申请Suspend锁操作，因此，该方法在分析wakelock锁申请流程时进行分析，
         此处暂且不进行分析*/
         updateSuspendBlockerLocked();//更新Suspend锁
-    }
+    }/*wwxx
+        updatePowerStateLocked()方法并不长，但是不太容易理解，下面仔细解释。
+
+        (1) updatePowerStateLocked() 方法首先调用 updateIsPoweredLocked() 方法，这个方法主要通过调用 BatteryService 的接口来更新几个成员变量的值，如下所示;
+            其中， mIsPowered 表示是否在充电、 mPlugType 表示充电的类型、 mBatteryLevel  表示当前电池电量的等级。
+
+        (2）调用 updateStayOnLocked() 函数来更新变量 mStayOn 的值，mStayOn 如果为true， 屏幕将长亮不灭。
+            在 Setting 中可以设置充电时屏幕长亮，如果 Setting 中设置了该选项， updateStayOnLocked() 函数中如果检测到正在充电，会将 mStayOn 的值设为true。
+        (3）接下来是一个无限for 循环，注意，不要被这个无限循环给吓住了，以为它会循环很多次，其实最多两次它就结束了，这一点后面会分析。
+            我们先看看循环中调用的 updateWakeLockSummaryLocked() 方法。这个方法的主要作用是根据 PowerManagerService 中所有 WakeLock 对象的类型，
+            计算一个最终的类型集合，并保存在变量 mWakeLockSummary 中。不管系统中一共创建了多少个 WakeLock 对象，一个就足以阻止系统休眠，
+            因此，这里把所有 WakeLock 对象的状态总结后放到一个变量中。应用创建 WakeLock 对象时，会指定对象的类型，这个类型将作为参数传递到 PowerManagerService 中。WakeLock 的类型有:
+            PARTIAL_WAKE_LOCK:只保持CPU运行，屏幕背光和键盘背光关闭。
+            FULL_WAKE_LOCK:CPU，屏幕背光和键盘背光都不关闭。
+            SCREEN BRIGHT_WAKE_LOCK:屏幕背光不关闭，但是键盘背光关闭。
+            SCREEN_DIM_WAKE_LOCK:屏幕背光不关闭，键盘背光关闭。但是屏幕背光可以变暗。
+            ROXIMITY_SCREEN_OFF_WAKE_LOCK:这个类型并不是用来阻止系统进入休眠，而是用来打开距离传感器控制屏幕开关的功能。
+                                          如果应用持有这种类型的 WakeLock，当距离传感器被遮挡时，屏幕将被关闭。在打电话时经常使用这个功能。
+            DOZE_WAKE_LOCK:这个类型用来让屏保管理器实现 doze 模式。
+
+        (4）循环中调用的第二个方法是 updateUserActivitySummaryLocked()，这个方法根据最后一次调用 userActivity() 方法的时间，
+            计算现在是否可以将表示屏幕状态的变量 mUserActivitySummary 的值设置为 SCREEN_STATE_DIM(变暗)，或者 SCREEN_STATE_OFF(关闭)。
+            如果时间还没到， 则发送一个定时消息 MSG_USER_ACTIVITY_TIMEOUT 。当处理消息的时间到了以后，会在消息的处理方法 handleUserActivityTimeout() 中重新调用
+            updatePowerStateLocked()方法，如下所示:
+
+                private void handleUserActivityTimeout() { // runs on handler thread
+                    synchronized (mLock) {
+                        if (DEBUG_SPEW) {
+                            Slog.d(TAG, "handleUserActivityTimeout");
+                        }
+
+                        mDirty |= DIRTY_USER_ACTIVITY;
+                        updatePowerStateLocked();
+                    }
+                }
+            再次调用updatePowerStateLocked()方法时，会根据当前状态重新计算mUserActivitySummary的值。
+
+        (5）循环中调用的第三个方法是 updateWakefulnessLocked()，这个方法是结束循环的关键。如果它的返回值是true，表示 PowerManagerService 的状态发生了变化，将继续循环，
+            然后重新调用前面的两个方法 updateWakeLockSummaryLocked() 和 updateUserActivitySummaryLocked()来更新。
+            而第二次调用 updateWakefulnessLocked() 通常都会返回false，这样就跳出了循环。我们看看这个方法的实现,在本文件实现处。
+
+        (6）结束循环后， updatePowerStateLocked() 方法中又调用了 updateDisplayPowerStateLocked() 方法。
+            这个方法的主要作用是根据更新后的 mUserActivitySummary 的值来确定屏幕的状态和亮度，并设置到 DisplayPowerController 对象中。
+        (7）接下来调用 updateDreamLocked() 方法，如果条件合适，这个方法中将启动屏保。
+        (8）最后调用 updateSuspendBlockerLocked() 方法，我们先看看它的代码:(见定义处)
+
+
+    */
 
     private void sendPendingNotificationsLocked() {
         if (mSendWakeUpFinishedNotificationWhenReady) {
@@ -1392,7 +1551,7 @@ public final class PowerManagerService extends IPowerManager.Stub
             mHandler.removeMessages(MSG_USER_ACTIVITY_TIMEOUT);
 
             long nextTimeout = 0;
-		////如果处于休眠状态，则不会执行该方法
+		//如果处于休眠状态，则不会执行该方法
             if (mWakefulness != WAKEFULNESS_ASLEEP) {
 				//设备完全进入休眠所需时间，该值为-1表示禁用此值，默认-1 ,
 				//用户超时时间，既经过一段时间不活动进入休眠或屏保的时间，特殊情况外，
@@ -1495,6 +1654,30 @@ public final class PowerManagerService extends IPowerManager.Stub
      *
      * Returns true if the wakefulness changed and we need to restart power state calculation.
      */
+
+    /*wwxx
+    updateWakefulnessLocked()方法中首先判断 dirty 的值，如果是第一次调用，这个条件很容易就满足了，注意，第二个if语句的判断条件，它要求 mWakefulness 的值为 WAKEFULNESS_AWAKE,
+    并且调用方法 isItBedTimeYetLocked()的返回值为true才继续执行，否则方法结束并返回 false，当然返回false就会跳出循环了。
+    我们先假定调用的时候 mWakefulness 等于 WAKEFULNESS_AWAKE(大部分情况的确如此)，下面看看方法 isItBedTimeYetLocked() 什么情况下返回true，代码如下所示:
+    private boolean isItBedTimeYetLocked() {
+        return mBootCompleted && !isBeingKeptAwakeLocked();
+    }
+
+    isItBedTimeYetLocked() 方法判断了两个条件，第一个条件 mBootCompleted 表示启动是否完成(启动没完成前是不能睡眠的)，这个变量启动后就是 true了。
+    第二个条件是 isBeingKeptAwakeLocked() 方法的返回值，如果系统目前不能睡眠，这个方法将返回true.
+
+    isBeingKeptAwakeLocked()方法判断系统是否能睡眠的几个变量前面都讲过了,前面讲到的一些方法中更新这些变量就是为了用在这里。
+
+    因此， isItBedTimeYetLocked()方法只有在系统能够进入睡眠的情况下才返回true。
+
+    让我们回到 updateWakefulnessLocked()方法中，假如系统能够睡眠，接下来将调用方法 shouldNapAtBedTimeLocked()，这个方法将检查系统有没有设置睡眠时间到启动屏保或者插在Dock上启动屏保。
+    如果设置了，将调用 napNoUpdateLocked() 方法，没有设置则调用goToSleepNoUpdateLocked()方法。
+
+    在 napNoUpdateLocked()方法中，见 napNoUpdateLocked 方法处的笔记。
+
+    而 goToSlcepNoUpdateLocked() 方法的作用是通过设置变量 mWakefulness ，将系统的状态转换为 WAKEFULNESS_ASLEEP， 具体的代码就不分析了。
+
+    */
     private boolean updateWakefulnessLocked(int dirty) {
         boolean changed = false;
         if ((dirty & (DIRTY_WAKE_LOCKS | DIRTY_USER_ACTIVITY | DIRTY_BOOT_COMPLETED
@@ -1844,26 +2027,33 @@ public final class PowerManagerService extends IPowerManager.Stub
      *
      * This function must have no other side-effects.
      */
+    /*wwxx
+    updateSuspendBlockerLocked()方法首先根据变量 mWakeLockSummary 是否带有 WAKE_LOCK_CPU 标志,以及 needDisplaySuspendBlocker() 方法的返回值决定
+    是否需要阻止CPU休眠或保持屏幕长亮,然后分别调用 mWakeLockSuspendBlocker 和 mDisplaySuspendBlocker 的 acquire()和release()方法来完成CPU和屏幕的锁定和解锁操作。
+    前面所进行的所有计算和更新操作，最后都汇集到这里来决定是休眠还是唤醒。
+    最后再看看 needDisplaySuspendBlockerLocked () 方法如何决定屏幕是否关闭:
+
+    */
     private void updateSuspendBlockerLocked() {
         final boolean needWakeLockSuspendBlocker = ((mWakeLockSummary & WAKE_LOCK_CPU) != 0);
         final boolean needDisplaySuspendBlocker = needDisplaySuspendBlocker();
 
         // First acquire suspend blockers if needed.
-        if (needWakeLockSuspendBlocker && !mHoldingWakeLockSuspendBlocker) {
+        if (needWakeLockSuspendBlocker && !mHoldingWakeLockSuspendBlocker) {// 如果不能休眠,调用底层的wake_lock函数
             mWakeLockSuspendBlocker.acquire();
             mHoldingWakeLockSuspendBlocker = true;
         }
-        if (needDisplaySuspendBlocker && !mHoldingDisplaySuspendBlocker) {
+        if (needDisplaySuspendBlocker && !mHoldingDisplaySuspendBlocker) {//如果需要保存屏幕长亮,调用底层的wake_lock函数
             mDisplaySuspendBlocker.acquire();
             mHoldingDisplaySuspendBlocker = true;
         }
 
         // Then release suspend blockers if needed.
-        if (!needWakeLockSuspendBlocker && mHoldingWakeLockSuspendBlocker) {
+        if (!needWakeLockSuspendBlocker && mHoldingWakeLockSuspendBlocker) {// 如果可以休眠,调用底层的解锁函数
             mWakeLockSuspendBlocker.release();
             mHoldingWakeLockSuspendBlocker = false;
         }
-        if (!needDisplaySuspendBlocker && mHoldingDisplaySuspendBlocker) {
+        if (!needDisplaySuspendBlocker && mHoldingDisplaySuspendBlocker) {//如果不需要保存屏幕长亮,调用底层的解锁函数
             mDisplaySuspendBlocker.release();
             mHoldingDisplaySuspendBlocker = false;
         }
@@ -1873,11 +2063,16 @@ public final class PowerManagerService extends IPowerManager.Stub
      * Return true if we must keep a suspend blocker active on behalf of the display.
      * We do so if the screen is on or is in transition between states.
      */
+    /*wwxx
+
+    needDisplaySuspendBlocker ()方法主要是根据屏幕的状态来决定,如果屏幕开着或处于变暗状态时，近距离传感器也没有工作,不能关闭屏幕。
+
+    */
     private boolean needDisplaySuspendBlocker() {
-        if (!mDisplayReady) {
+        if (!mDisplayReady) {//如果显示设备没准备好,不能关闭屏幕
             return true;
         }
-        if (mDisplayPowerRequest.screenState != DisplayPowerRequest.SCREEN_STATE_OFF) {
+        if (mDisplayPowerRequest.screenState != DisplayPowerRequest.SCREEN_STATE_OFF) {//如果屏幕开着或处于变暗的状态，而且距离传感器没有工作，不能关闭屏幕
             // If we asked for the screen to be on but it is off due to the proximity
             // sensor then we may suspend but only if the configuration allows it.
             // On some hardware it may not be safe to suspend because the proximity
@@ -1887,7 +2082,7 @@ public final class PowerManagerService extends IPowerManager.Stub
                 return true;
             }
         }
-        return false;
+        return false;//可以关闭屏幕
     }
 
     @Override // Binder call
@@ -2565,6 +2760,27 @@ public final class PowerManagerService extends IPowerManager.Stub
     /**
      * Represents a wake lock that has been acquired by an application.
      */
+
+/*wwxx
+WakeLock的native层实现
+
+我们先回到 PowerManagerService 的构造函数，看看它是如何创建两个变量 mWakeLockSuspendBlocker 和 mDisplaySuspendBlocker的。
+            mWakeLockSuspendBlocker = createSuspendBlockerLocked("PowerManagerService.WakeLocks");
+            mDisplaySuspendBlocker = createSuspendBlockerLocked("PowerManagerService.Display");
+
+从代码中可以看出，这两个变量都是调用createSuspendBlockerLocked()方法来创建的，但是参数不一样，
+一个是“PowerManagerService.WakeLocks ”，另一个是“PowerManagerService.Display”。方法的代码如下。
+
+    private SuspendBlocker createSuspendBlockerLocked(String name) {
+        SuspendBlocker suspendBlocker = new SuspendBlockerImpl(name);
+        mSuspendBlockers.add(suspendBlocker);
+        return suspendBlocker;
+    }
+
+createSuspendBlockerLocked()方法中创建了一个 SuspendBlockerImpl 对象并返回，
+因此 mWakeLockSuspendBlocker 和 mDisplaySuspendBlocker 两个变量的实际类型应该是 SuspendBlockerImpl ，我们看看它的 acquire() 和 release() 方法的代码,去看看，就在下面。
+
+*/    
     private final class WakeLock implements IBinder.DeathRecipient {
         public final IBinder mLock;
         public int mFlags;
@@ -2662,7 +2878,11 @@ public final class PowerManagerService extends IPowerManager.Stub
             return result;
         }
     }
+/*wwxx 
+SuspendBlockerImpl 类中维护了一个计数器，调用 acquire() 方法时计数器加一，当计数器的值为1时，调用底层的 nativeAcquireSuspendBlocker 方法。
+调用 release 方法时计数器减一，当计数器的值减为0时，调用 nativeReleaseSuspendBlocker 方法。这两个方法在 native 层对应的函数,去看看。
 
+*/
     private final class SuspendBlockerImpl implements SuspendBlocker {
         private final String mName;
         private int mReferenceCount;
