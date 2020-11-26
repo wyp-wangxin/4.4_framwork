@@ -12705,6 +12705,21 @@ SystemServer在启动完所有服务之后,将调用AMS 的systemReady()方法�
     // SERVICES
     // =========================================================
 
+/*wwxx
+Service的启动过程 
+
+应用程序中 Context 中提供两个接口来启动 Service，分别是 startService()和 bindService()。定义如下:
+public ComponentName startService(Intent service);
+public boolean bindService (Intent service，ServiceConnection conn，int flags);
+
+从接口定义可以看出， bindService 需要传递一个回调接口 ServiceConnection 来接收 Binder 对象。
+这两个接口最后分别调用的是 ActivityManagerService 的 startService() 和  bindService()。
+它们的实现过程都差不多，但是 bindService 更复杂一些。下面我们通过分析bindService()方法来了解Service的启动过程。
+
+bindService()的代码见其定义处。
+*/
+
+
     public List<ActivityManager.RunningServiceInfo> getServices(int maxNum,
             int flags) {
         enforceNotIsolatedCaller("getServices");
@@ -12877,13 +12892,16 @@ SystemServer在启动完所有服务之后,将调用AMS 的systemReady()方法�
         }
         return result;
     }
-
+    /*wwxx
+    bindService() 方法首先检查启动 Service 的 Intent 中是否含有文件描述符，如果有，我们知道,这将导致系统在目标进程中创建新的文件描述符 ，这里将不允许这种情况。
+    检查完后，调用 ActiveServices 类的 bindServiceLocked() 方法。代码如下:见实现处。
+    */
     public int bindService(IApplicationThread caller, IBinder token,
             Intent service, String resolvedType,
             IServiceConnection connection, int flags, int userId) {
         enforceNotIsolatedCaller("bindService");
         // Refuse possible leaked file descriptors
-        if (service != null && service.hasFileDescriptors() == true) {
+        if (service != null && service.hasFileDescriptors() == true) {//不允许启动service的Intent中传递文件描述符
             throw new IllegalArgumentException("File descriptors passed in Intent");
         }
 

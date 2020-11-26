@@ -2571,7 +2571,9 @@ scheduleSleeping()方法只是发送了消息SLEEPING，所有消息都在Handle
             Slog.w(TAG, "Attempt to destroy unknown backup agent " + data);
         }
     }
-
+    /*wwxx
+    handleCreateService() 的工作就是生成一个 Service 对象，并调用 onCreate() 方法。
+    */
     private void handleCreateService(CreateServiceData data) {
         // If we are getting ready to gc after going to the background, well
         // we are back active so skip it.
@@ -2582,6 +2584,7 @@ scheduleSleeping()方法只是发送了消息SLEEPING，所有消息都在Handle
         Service service = null;
         try {
             java.lang.ClassLoader cl = packageInfo.getClassLoader();
+            // 生成Service对象
             service = (Service) cl.loadClass(data.info.name).newInstance();
         } catch (Exception e) {
             if (!mInstrumentation.onException(service, e)) {
@@ -2600,7 +2603,7 @@ scheduleSleeping()方法只是发送了消息SLEEPING，所有消息都在Handle
             Application app = packageInfo.makeApplication(false, mInstrumentation);
             service.attach(context, this, data.info.name, data.token, app,
                     ActivityManagerNative.getDefault());
-            service.onCreate();
+            service.onCreate();//调用 Service的 onCreate方法。
             mServices.put(data.token, service);
             try {
                 ActivityManagerNative.getDefault().serviceDoneExecuting(
@@ -2616,7 +2619,22 @@ scheduleSleeping()方法只是发送了消息SLEEPING，所有消息都在Handle
             }
         }
     }
+    /*wwxx
+    handleBindService()方法中调用了Service的onBinder()方法,通常应用需要在这个方法中创建出 Binder对象并返回。
+    如果是重新绑定，则调用onRebind()接口。重新绑定不用再传递Binder对象，因为这个对象已经在AMS 中了。
+    得到 Binder 对象后，handleBindService 调用 publishService() 方法来将 Binder对象传递到调用 bindService 的进程中。
 
+    ActivityManagerServcie的 publishService()将调用ActiveServices 中的 publishServiceLocked()方法。
+
+    void publishServiceLocked(ServiceRecord r, Intent intent, IBinder service) {
+        ....
+        c.conn.connected(r.name, service);
+        ....
+    }
+    publishServiceLocked 调用 IServiceConnection 的 connected() 方法把 binder 对象传递到绑定服务的进程中,这样整个启动过程就结束了。
+
+    总体而言，Service 的管理还是比较简单的，毕竟对 Service 的管理只有启动和停止两种操作。停止 Service的过程更加简单，这里就不分析了。
+    */
     private void handleBindService(BindServiceData data) {
         Service s = mServices.get(data.token);
         if (DEBUG_SERVICE)
@@ -2626,11 +2644,12 @@ scheduleSleeping()方法只是发送了消息SLEEPING，所有消息都在Handle
                 data.intent.setExtrasClassLoader(s.getClassLoader());
                 try {
                     if (!data.rebind) {
+                        //调用 Service 的 onBinder
                         IBinder binder = s.onBind(data.intent);
                         ActivityManagerNative.getDefault().publishService(
                                 data.token, data.intent, binder);
                     } else {
-                        s.onRebind(data.intent);
+                        s.onRebind(data.intent);//调用service 的 onReBind ( )
                         ActivityManagerNative.getDefault().serviceDoneExecuting(
                                 data.token, 0, 0, 0);
                     }

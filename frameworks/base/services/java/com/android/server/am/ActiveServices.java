@@ -106,12 +106,18 @@ public final class ActiveServices {
     // Maximum number of services that we allow to start in the background
     // at the same time.
     final int mMaxStartingBackground;
-
+    /*wwxx
+    mServiceMap 是一个 SparseArray 类型的数组，索引是用户 Id ，不同用户的 Service 记录存放在数组元素中，每个元素是一个 ServiceMap 对象，存储了某个用户所有 ServiceRecord 对象。
+    用户进程中的 Service 在 AMS 中对应的数据结构就是 ServiceRecord 类。
+    */
     final SparseArray<ServiceMap> mServiceMap = new SparseArray<ServiceMap>();
 
-    /**
+    /**wwxx
      * All currently bound service connections.  Keys are the IBinder of
      * the client's IServiceConnection.
+
+     mServiceConnections 存储的是所有连接记录 ConnectionRecord 的对象。连接记录是指某个进程绑定Service时传递的连接信息。
+     因此， mServiceConnections 记录的是 AMS 和使用服务的进程之间的联系。
      */
     final ArrayMap<IBinder, ArrayList<ConnectionRecord>> mServiceConnections
             = new ArrayMap<IBinder, ArrayList<ConnectionRecord>>();
@@ -121,18 +127,25 @@ public final class ActiveServices {
      * but haven't yet been able to.  It is used to hold start requests
      * while waiting for their corresponding application thread to get
      * going.
+     wwxx
+
+     mPendingServices 保存的是正在等待进程启动的服务记录。
+     当启动一个服务时，服务所在的进程可能还没有启动，这时 AMS 会去启动服务所在的进程，但是这个时间会比较长，因此，先把服务的信息保存在 mPendingServices 列表中。
      */
     final ArrayList<ServiceRecord> mPendingServices
             = new ArrayList<ServiceRecord>();
 
     /**
      * List of services that are scheduled to restart following a crash.
+
+     mRestartingServices 保存的是正在等待重新启动进程的服务记录。如果服务所在的进程崩溃了，会把服务加入 mRestartingServices 中，准备重新启动进程。
      */
     final ArrayList<ServiceRecord> mRestartingServices
             = new ArrayList<ServiceRecord>();
 
     /**
      * List of services that are in the process of being destroyed.
+     mDestroyingServices 保存的是正在等待进程销毁的服务记录。销毁进程也需要一段时间，因此，在完成销毁前，先把服务记录保存在mDestroyingServices列表中。
      */
     final ArrayList<ServiceRecord> mDestroyingServices
             = new ArrayList<ServiceRecord>();
@@ -237,7 +250,15 @@ public final class ActiveServices {
             }
         }
     }
+    /*wwxx
+    理解Service的管理类
 
+    ActivityManagerService 中对于 Service 的管理是通过 ActiveServices 类来进行的。 ActiveServices 类的构造方法如下:
+
+    这个构造函数很简单，只是从系统属性 ro.config.max_starting_bg 中读取了允许后台运行的Service的最大数量。
+
+    ActiveServices中还有不少重要的成员变量,重要的在每一个变量出注释了。
+    */
     public ActiveServices(ActivityManagerService service) {
         mAm = service;
         int maxBg = 0;
@@ -638,7 +659,10 @@ public final class ActiveServices {
         }
         return false;
     }
-
+    /*wwxx
+    bindServiceLocked() 方法中，如果服务所在的进程还没有启动,将调用 bringUpServiceLocked() 方法来启动进程。因为启动进程时间比较长，所以这里先退出。
+    如果进程已经启动，那么只需要调用 requestServiceBindingLocked() 方法来绑定binder服务。我们分别看看 bringUpServiceLocked() 和 requestServiceBindingLocked()方法的处理过程。
+    */
     int bindServiceLocked(IApplicationThread caller, IBinder token,
             Intent service, String resolvedType,
             IServiceConnection connection, int flags, int userId) {
@@ -701,7 +725,7 @@ public final class ActiveServices {
         final long origId = Binder.clearCallingIdentity();
 
         try {
-            if (unscheduleServiceRestartLocked(s, callerApp.info.uid, false)) {
+            if (unscheduleServiceRestartLocked(s, callerApp.info.uid, false)) {// Service 要启动了，如果它在mRestartingServices中有记录，调用下面的方法移除掉
                 if (DEBUG_SERVICE) Slog.v(TAG, "BIND SERVICE WHILE RESTART PENDING: "
                         + s);
             }
@@ -750,10 +774,10 @@ public final class ActiveServices {
             }
             clist.add(c);
 
-            if ((flags&Context.BIND_AUTO_CREATE) != 0) {
+            if ((flags&Context.BIND_AUTO_CREATE) != 0) {//启动Service所在的进程
                 s.lastActivity = SystemClock.uptimeMillis();
                 if (bringUpServiceLocked(s, service.getFlags(), callerFg, false) != null) {
-                    return 0;
+                    return 0;//等待启动完成,先退出
                 }
             }
 
@@ -768,7 +792,7 @@ public final class ActiveServices {
                     + " apps=" + b.intent.apps.size()
                     + " doRebind=" + b.intent.doRebind);
 
-            if (s.app != null && b.intent.received) {
+            if (s.app != null && b.intent.received) {//如果进程已经启动并且绑定过了，立即调用连接接口传递回Binder对象
                 // Service is already running, so we can immediately
                 // publish the connection.
                 try {
@@ -785,7 +809,7 @@ public final class ActiveServices {
                 if (b.intent.apps.size() == 1 && b.intent.doRebind) {
                     requestServiceBindingLocked(s, b.intent, callerFg, true);
                 }
-            } else if (!b.intent.requested) {
+            } else if (!b.intent.requested) {//如果还没有绑定,调用下面的方法执行绑定
                 requestServiceBindingLocked(s, b.intent, callerFg, false);
             }
 
@@ -1252,7 +1276,16 @@ public final class ActiveServices {
             }
         }
     }
+    /*wwxx
+    bringUpServiceLocked()的代码如下:
 
+    调用 bringUpServiceLocked() 时，如果进程已经启动，而且也没有要求 Service 必须运行在一个单独的进程中，那么调用 realStartServiceLocked() 进入到下一步，
+    否则调用 startProcessLocked() 来启动新进程。前面我们已经介绍过 isolatedProcess 属性了，如果设置了这个属性，将导致上面代码中的 isolated 变量设为true。
+    为了进程启动结束后能继续运行该 Service，最后将 Service 的记录加入到了 ActiveServices 的成员变量 mPendingServices 中。
+
+    当进程启动完成后，会调用ActiveServices 的 attachApplicationLocked() 方法，代码如下:见定义处。
+
+    */
     private final String bringUpServiceLocked(ServiceRecord r,
             int intentFlags, boolean execInFg, boolean whileRestarting) {
         //Slog.i(TAG, "Bring up service:");
@@ -1309,12 +1342,12 @@ public final class ActiveServices {
         final String procName = r.processName;
         ProcessRecord app;
 
-        if (!isolated) {
+        if (!isolated) {// isolated 为 false， 表示不要求一个单独的进程来运行服务
             app = mAm.getProcessRecordLocked(procName, r.appInfo.uid, false);
             if (DEBUG_MU) Slog.v(TAG_MU, "bringUpServiceLocked: appInfo.uid=" + r.appInfo.uid
                         + " app=" + app);
             if (app != null && app.thread != null) {
-                try {
+                try {//如果进程已经启动,则调用 realStartServiceLocked
                     app.addPackage(r.appInfo.packageName, mAm.mProcessStats);
                     realStartServiceLocked(r, app, execInFg);
                     return null;
@@ -1332,12 +1365,12 @@ public final class ActiveServices {
             // for a previous process to come up.  To deal with this, we store
             // in the service any current isolated process it is running in or
             // waiting to have come up.
-            app = r.isolatedProc;
+            app = r.isolatedProc;//得到运行Service的单独的进程，第一次为null
         }
 
         // Not running -- get it started, and enqueue this service record
         // to be executed when the app comes up.
-        if (app == null) {
+        if (app == null) {// 如果进程还没有启动，调用 startProcessLocked 来启动进程
             if ((app=mAm.startProcessLocked(procName, r.appInfo, true, intentFlags,
                     "service", r.name, false, isolated, false)) == null) {
                 String msg = "Unable to launch app "
@@ -1346,14 +1379,14 @@ public final class ActiveServices {
                         + r.intent.getIntent() + ": process is bad";
                 Slog.w(TAG, msg);
                 bringDownServiceLocked(r);
-                return msg;
+                return msg;//启动进程失败,退出
             }
             if (isolated) {
                 r.isolatedProc = app;
             }
         }
 
-        if (!mPendingServices.contains(r)) {
+        if (!mPendingServices.contains(r)) {//等待进程启动，把 serviceRecord 先加入到pending列表
             mPendingServices.add(r);
         }
 
@@ -1377,7 +1410,14 @@ public final class ActiveServices {
             }
         }
     }
+    /*wwxx
+    realStartServiceLocked() 主要的工作就是调用两个方法，分别是 ApplicationThread 的 scheduleCreateService() 方法和 requestServiceBindingsLocked() 方法。
+    后者最终也会调用 ApplicationThread的 scheduleBindService() 方法。
+    scheduleCreateService 方法中会发出消息 CREATE_SERVICE，消息的处理代码中将调用 ActivityThread 的 handleCreateService()方法，代码如下:见 Activity.java 中
 
+    requestServiceBindingsLocked()-->requestServiceBindingLocked()-->scheduleBindService()方法会发出消息 BIND_SERVICE,
+    消息的处理代码中调用ActivityThread类的 handleBindService() 方法，代码如下:见定义处。
+    */
     private final void realStartServiceLocked(ServiceRecord r,
             ProcessRecord app, boolean execInFg) throws RemoteException {
         if (app.thread == null) {
@@ -1406,6 +1446,7 @@ public final class ActiveServices {
             }
             mAm.ensurePackageDexOpt(r.serviceInfo.packageName);
             app.forceProcessStateUpTo(ActivityManager.PROCESS_STATE_SERVICE);
+            //调用 scheduleCreateService 在服务进程中创建Service对象
             app.thread.scheduleCreateService(r, r.serviceInfo,
                     mAm.compatibilityInfoForPackageLocked(r.serviceInfo.applicationInfo),
                     app.repProcState);
@@ -1418,7 +1459,7 @@ public final class ActiveServices {
                 scheduleServiceRestartLocked(r, false);
             }
         }
-
+        //要求服务进程绑定Binder 服务
         requestServiceBindingsLocked(r, execInFg);
 
         // If the service is in the started state, and there are no
@@ -1854,7 +1895,10 @@ public final class ActiveServices {
             }
         }
     }
-
+/*wwxx
+ActiveServices 的attachApplicationLocked()方法中会处理所有pending 状态的Service，处理的方式就是调用realStartServiceLocked()方法，这样和前面的处理过程就衔接起来了。
+下面再看看 realStartServiceLocked()的代码: 见定义处。
+*/
     boolean attachApplicationLocked(ProcessRecord proc, String processName) throws Exception {
         boolean didSomething = false;
         // Collect any services that are waiting for this process to come up.
@@ -1871,7 +1915,7 @@ public final class ActiveServices {
                     mPendingServices.remove(i);
                     i--;
                     proc.addPackage(sr.appInfo.packageName, mAm.mProcessStats);
-                    realStartServiceLocked(sr, proc, sr.createdFromFg);
+                    realStartServiceLocked(sr, proc, sr.createdFromFg);//这里又调用了realStartServiceLocked
                     didSomething = true;
                 }
             } catch (Exception e) {
