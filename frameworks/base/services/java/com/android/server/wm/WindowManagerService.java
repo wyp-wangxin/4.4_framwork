@@ -2880,7 +2880,34 @@ wwxx
             return window != null ? window.mWindowId : null;
         }
     }
+    /*wwxx step 4
+    参数client是一个Binder代理对象，它引用了运行在应用程序进程这一侧中的一个W对象，用来标志一个Activity窗口。
+    从前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文可以知道，在应用程序进程这一侧的每一个W对象，在WindowManagerService服务这一侧都有一个对应的WindowState对象，
+    用来描述一个Activity窗口的状态。因此，WindowManagerService类的成员函数 relayoutWindow 首先通过调用另外一个成员函数 windowForClientLocked 来获得与参数client所对应的一个WindowState对象win，
+    以便接下来可以对它进行操作。
 
+   我们只关注WindowManagerService类的成员函数 relayoutWindow 中与窗口大小计算有关的逻辑，计算过程如下所示：
+
+    1. 参数 requestedWidth 和 requestedHeight 描述的是应用程序进程请求设置Activity窗口中的宽度和高度，它们会被记录在WindowState对象win的成员变量 mRequestedWidth 和 mRequestedHeight 中。
+
+    2. WindowState对象win的成员变量 mAttrs ，它指向的是一个WindowManager.LayoutParams对象，用来描述Activity窗口的布局参数。 
+        其中，这个WindowManager.LayoutParams对象的成员变量width和height是用来描述Activity窗口的宽度和高度的。当这个WindowManager.LayoutParams对象的成员变量
+        flags的WindowManager.LayoutParams.FLAG_SCALED位不等于0的时候，就说明需要给Activity窗口的大小设置缩放因子。
+        缩放因子分为两个维度，分别是宽度缩放因子和高度缩放因子，保存在WindowState对象win的成员变量 HScale 和 VScale 中，
+        计算方法分别是用应用程序进程请求设置Activity窗口中的宽度和高度除以Activity窗口在布局参数中所设置的宽度和高度。
+        
+    3.参数 flags 用来描述Activity窗口是否有额外的内容区域边衬和可见区域边衬未设置，它被记录在WindowState对象win的成员变量 mGivenInsetsPending 中。
+
+    4.调用WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 来计算Activity窗口的大小。计算完成之后，
+        参数client所描述的Activity窗口的大小、内容区域边衬大小和可见区域边边衬大小就会分别保存在WindowState对象win的成员变量 mFrame 、 mContentInsets 和 mVisibleInsets 中。
+
+     5. 将WindowState对象win的成员变量 mFrame 、 mContentInsets 和 mVisibleInsets 的值分别拷贝到参数出数 outFrame 、 outContentInsets和outVisibleInsets 中，以便可以返回给应用程序进程。
+
+      经过上述五个操作后，Activity窗口的大小计算过程就完成了，接下来我们继续分析WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 的实现，
+      以便可以详细了解Activity窗口的大小计算过程。
+
+      去看看这个函数 WindowManagerService.performLayoutAndPlaceSurfacesLocked 
+    */
     public int relayoutWindow(Session session, IWindow client, int seq,
             WindowManager.LayoutParams attrs, int requestedWidth,
             int requestedHeight, int viewVisibility, int flags,
@@ -8257,7 +8284,37 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
             mDisplayMagnifier.onWindowLayersChangedLocked();
         }
     }
+    /*wwxx Step 5
+    从WindowManagerService类的成员函数performLayoutAndPlaceSurfacesLocked的名称可以推断出，它执行的操作绝非是计算窗口大小这么简单。
+    计算窗口大小只是其中的一个小小功能点，它主要的功能是用来刷新系统的UI。在我们这个情景中，为什么需要刷新系统的UI呢？
+    Activity窗口在其属性发生了变化，例如，可见性、大小发生了变化，又或者它新增、删除了子视图，都需要重新计算大小，而这些变化都是要求WindowManagerService服务重新刷新系统的UI的。
+    事实上，刷新系统的UI是WindowManagerService服务的主要任务，在新增和删除了窗口、窗口动画显示过程、窗口切换过程中，WindowManagerService服务都需要不断地刷新系统的UI。
 
+    WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 主要是通过调用另外一个成员函数 performLayoutAndPlaceSurfacesLockedInner 来刷新系统的UI的，
+
+    而在刷新的过程中，就会对系统中的各个窗口的大小进行计算。
+
+    在调用成员函数 performLayoutAndPlaceSurfacesLockedInner 来刷新系统UI的前后，WindowManagerService类的成员函数performLayoutAndPlaceSurfacesLocked 还会执行以下两个操作：
+
+     1. 调用前，检查系统中是否存在强制删除的窗口。有内存不足的情况下，有一些窗口就会被回收，即要从系统中删除，这些窗口会保存在WindowManagerService类的成员变量 mForceRemoves 所描述的一个ArrayList中。
+        如果存在这些窗口，那么WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 就会调用另外一个成员函数 removeWindowInnerLocked 来删除它们，以便可以回收它们所占用的内存。
+
+    2. 调用后，检查系统中是否有窗口需要移除如果有的话，那么WindowManagerService类的成员变量 mPendingRemove 所描述的一个ArrayList的大小就会大于0。
+        这种情况下，WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 就会调用另外一个成员函数 removeWindowInnerLocked 来移除这些窗口。
+        注意，WindowManagerService类的成员函数 removeWindowInnerLocked 只是用来移除窗口，但是并没有回收这些窗口所占用的内存。等到合适的时候，例如，内存不足时，才会考虑回收这些窗口所占用的内存。
+        移除一个窗口的操作也是很复杂的，除了要将窗口从WindowManagerService类的相关成员变量中移除之外，还要考虑重新调整输入法窗口和壁纸窗口，因为被移除的窗口可能要求显示壁纸和输入法窗口，当它被移除之后，
+        就要将壁纸窗口和输入法窗口调整到合适的Z轴位置上去，以便可以交给下一个需要显示壁纸和输入法窗口的窗口使用。此外，在移除了窗口之后，WindowManagerService服务还需要重新计算现存的其它窗口的Z轴位置，
+        以便可以正确地反映系统当前的UI状态，这是通过调用WindowManagerService类的成员函数 assignLayersLocked 来实现的。重新计算了现存的其它窗口的Z轴位置之后，又需要再次刷新系统的UI，
+        即要对WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 进行递归调用，并且在调用前，将WindowManagerService类的成员变量 mLayoutNeeded 的值设置为true。
+        由此就可见，系统UI的刷新过程是非常复杂的。
+    3、注意，为了防止在刷新系统UI的过程中被重复调用，WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 在刷新系统UI之前，即调用成员函数 
+        performLayoutAndPlaceSurfacesLockedInner 之前，会将WindowManagerService类的成员变量 mInLayout 的值设置为true，并且在调用之后，重新将这个成员变量的值设置为false。
+        这样，WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 就可以在一开始的时候检查成员变量 mInLayout 的值是否等于true，如果等于的话，
+        那么就说明WindowManagerService服务正在刷新系统UI的过程中，于是就不用往下执行了。
+
+    接下来，我们就继续分析WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLockedInner 的实现，以便可以了解Activity窗口的大小计算过程。去看看吧！
+
+    */
     private final void performLayoutAndPlaceSurfacesLocked() {
         int loopCount = 6;
         do {
@@ -8346,7 +8403,59 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
 
         Trace.traceEnd(Trace.TRACE_TAG_WINDOW_MANAGER);
     }
+    /*wwxx step 7
+    在分析WindowManagerService类的成员函数 performLayoutLockedInner 的实现之前，我们首先介绍WindowManagerService类的两个成员变量 mPolicy 和 mWindows ：
 
+    1. mPolicy 指向的是一个窗口管理策略类，它是通过调用PolicyManager类的静态成员函数 makeNewWindowManager 来初始化的，在Phone平台中，它指向的是便是一个PhoneWindowManager对象，
+        主要是用来制定窗口的大小计算策略。
+
+    2. mWindows 指向的是一个类型为WindowState的 ArrayList，它里面保存的就是系统中的所有窗口，这些窗口是按照Z轴位置从小到大的顺序保存在这个ArrayList中的，也就是说，
+        第i个窗口位于第i-1个窗口的上面，其中，i > 0。理解了这两个成员变量的含义之后，我们就分析WindowManagerService类的成员函数 performLayoutLockedInner 的执行过程，主要是分三个阶段：
+
+    1. 准备阶段：调用PhoneWindowManager类的成员函数 beginLayoutLw 来设置屏幕的大小。
+        屏幕的大小可以通过调用WindowManagerService类的成员变量 mDisplay 所描述的一个Display对象的成员函数 getWidth 和 getHeight 来获得。
+
+    2. 计算阶段：调用PhoneWindowManager类的成员函数 layoutWindowLw 来计算各个窗口的大小、内容区域边衬大小以及可见区域边衬大小。
+
+    3. 结束阶段：调用PhoneWindowManager类的成员函数 finishLayoutLw 来执行一些清理工作。
+
+    按照父子关系来划分，系统中的窗口可以分为父窗口和子窗口两种。如果一个WindowState对象的成员变量 mLayoutAttached 的值等于false，那么它所描述的窗口就可以作为一个父窗口，否则的话，
+    它所描述的窗口就是一个子窗口。由于子窗口的大小计算是依赖于其父窗口的，因此，在计算各个窗口的大小的过程中，即在上述的第2阶段中，按照以下方式来进行：
+
+    1.  先计算父窗口的大小。一般来说，能够作为父窗口的，是那些Activity窗口。从前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文可以知道，
+    如果一个窗口是Activity窗口，那么用来描述它的一个WindowState对象的成员变量 mAppToken 就不等于null，并且指向的是一个 AppWindowToken 对象。这个AppWindowToken对象主要是用来描述一个Activity，
+    即与ActivityManagerService服务中的一个 ActivityRecord 对象对应。
+    一个Activity窗口只有在两种情况下才会被计算大小：第一种情况是窗口不是处于不可见状态的；第二种情况是窗口从来还没有被计算过大小，
+    即用来描述该Activity窗口的WindowState对象的成员变量 mHaveFrame 的值等于false，这种情况一般发生在窗口刚刚被添加到WindowManagerService的过程中。
+    一个Activity窗口的不可见状态由它本身的状态、它所在的窗口结构树状态以及它所属的Activity的状态有关，也就是说，如果一个Activity窗口本身是可见的，
+    但是由于它的父窗口、它所在的窗口组的根窗口或者它所属的Activity是不可见的，那么该Activity窗口也是不可见的。一个Activity窗口的不可见状态由以下因素决定：
+
+        1). 它本身处于不可见状态，即对应的WindowState对象的成员变量 mViewVisibility 的值等于 View.GONE ；
+
+        2). 它本身处于正在退出的状态，即对应的WindowState对象的成员变量 mExiting 的值等于 true；
+
+        3). 它本身处于正在销毁的状态，即对应的WindowState对象的成员变量 mDestroying 的值等于 true；
+
+        4). 它的父窗口处于不可见状态，即对应的WindowState对象的成员变量 mAttachedHidden 的值等于true；
+
+        5). 它所在窗口结构树中的根窗口处于不可见状态，即对应的WindowState对象的成员变量 mRootToken 所描述的一个WindowToken对象的成员变量 hidden 的值等于true；
+
+        6). 它所属的Activity处于不可见状态，即对应的WindowState对象的成员变量 mAppToken 所描述的一个AppWindowToken对象的成员变量 hiddenRequested 的值等于true。
+
+        除了上述六个因素之外，如果一个Activity窗口没有被它所运行在的应用程序进程主动请求WindowManagerService服务对它进行布局，即对应的WindowState对象的成员变量 mRelayoutCalled 的值等于false，
+        那么此时也是不需要计算Activity窗口的大小的。一个Activity窗口的大小一旦确定是需要计算大小之后，PhoneWindowManager类的成员函数 layoutWindowLw 就被调用来计算它的大小。
+
+    2. 接着计算子窗口的大小。前面在计算父窗口的大小过程中，会记录位于系统最上面的一个子窗口在 mWindows 所描述的一个ArrayList的位置 topAttached ，接下来就可以从这个位置开始向下计算每一个子窗口的大小。
+        一个子窗口在以下两种情况下，才会被计算大小：
+
+       1). 它本身处于可见状态，即对应的WindowState对象的成员变量 mViewVisibility 的值不等于 View.GONE ，并且它所运行在的应用程序进程主动请求WindowManagerService服务对它进行布局，
+        即对应的WindowState对象的成员变量 mRelayoutCalled 的值等于true。
+
+       2). 它从来还没有被计算过大小，即用来描述该子窗口的WindowState对象的成员变量 mHaveFrame 的值等于false，这种情况一般发生在子窗口刚刚被添加到WindowManagerService的过程中。
+
+       接下来，我们就分别分析PhoneWindowManager类的成员函数 beginLayoutLw 、 layoutWindowLw 和 finishLayoutLw 的实现，以便可以了解Activity窗口的大小计算过程。
+       他们在 PhoneWindowManager.java 中实现，去看看吧
+    */
     private final void performLayoutLockedInner(final DisplayContent displayContent,
                                     boolean initial, boolean updateInputWindows) {
         if (!displayContent.layoutNeeded) {
@@ -9038,6 +9147,30 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
     }
 
     // "Something has changed!  Let's make it correct now."
+    /*wwxx Step 6
+
+    WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLockedInner 是一个巨无霸的函数，它一共有1200+行代码，承载了WindowManagerService服务的核心功能。
+    对于这样一个巨无霸函数，要逐行地分析它的实现是很困难的，因为要理解各种上下文信息，才可以清楚地知道它的执行过程。这里我们就大概地分析它的实现框架，以后再逐步地分析它的具体实现：
+
+    1、做两件事情：第一件事情是计算各个窗品的大小，这是通过调用另外一个成员函数 performLayoutLockedInner 来实现的；
+        第二件事情是执行窗口的动画，主要是处理窗口的启动窗口显示动画和窗口切换过程中的动画，以及更新各个窗口的可见性。
+        注意，每一次while循环执行之后，如果发现系统中的各个窗口的相应布局属性不再发生变化，那么就不行执行下一次的while循环了，即该while循环可能不用执行7次就结束了。
+        窗口的动画显示过程和窗口的可见性更新过程是相当复杂的，它们也是WindowManagerService服务最为核的地方。
+
+    2. 经过第1点的操作之后，接下来就可以将各个窗口的属性，例如，大小、位置等属性，通知 SurfaceFlinger 服务了，也就是让SurfaceFlinger服务更新它里面的各个Layer的属性值，
+        以便可以对这些Layer执行可见性计算、合成等操作，最后渲染到硬件帧缓冲区中去。SurfaceFlinger服务计算系统中各个窗口，即各个Layer的可见性，以便将它们合成、渲染到硬件帧缓冲区的过程
+        可以参考前面Android系统Surface机制的SurfaceFlinger服务渲染应用程序UI的过程分析一文。注意，各个窗口的属性更新操作是被包含在SurfaceFlinger服务的一个事务中的，即一个 Transaction 中，
+        这样做是为了避免每更新一个窗口的一个属性就触发SurfaceFlinger服务重新计算各个Layer的可见性，以及对各个Layer进行合并和渲染的操作。
+        启动SurfaceFlinger服务的一个事务可以通过调用Surface类的静态成员函数 openTransaction 来实现，而关闭SurfaceFlinger服务的一个事务可以通过调用Surface类的静态成员函数 closeTransaction 来实现。
+
+    3. 经过第1点和第2点的操作之后，一次系统UI的刷新过程就完成了，这时候就会将系统中的那些不会再显示的窗口的绘图表面销毁掉，并且将那些已经完成退出了的窗口令牌，
+        即将我们在前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文中所提到的WindowToken移除掉，以及将那些已经退出了的Activity窗口令牌，
+        即将我们在前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文中所提到的AppWindowToken也移除掉。这一步实际执行的是窗口清理操作。
+
+    上述三个操作是WindowManagerService类的成员函数performLayoutAndPlaceSurfacesLockedInner的实现关键所在，理解了这三个操作，基本也就可以理解WindowManagerService服务刷新系统UI的过程了。
+
+       接下来，我们继续分析WindowManagerService类的成员函数 performLayoutLockedInner 的实现，以便可以继续了解Activity窗口的大小计算过程。 去看看吧！
+    */
     private final void performLayoutAndPlaceSurfacesLockedInner(boolean recoveringMemory) {
         if (DEBUG_WINDOW_TRACE) {
             Slog.v(TAG, "performLayoutAndPlaceSurfacesLockedInner: entry. Called by "

@@ -133,15 +133,15 @@ public final class ViewRootImpl implements ViewParent,
 
     final Context mContext;
     /*wwxx
-	App��WMS�����ӣ����ȻὨ��һ��Session��WMS��֮��ͻ�ͨ��IWindowSession�ӿ���WMS�е�Sessionֱ��ͨ�ţ�
-	IWindowSession����ʲô����ָ����һ��ʵ����IWindowSession�ӿڵ�Session��������
-	��Ӧ�ó������������һ��Activity�����ʱ�����ͻ�����WMS������һ���������ӵ�Binder���̼�ͨ������
-	WMS������յ��������֮�󣬾ͻ����ڲ�����һ������ΪSession��Binder���ض���
-	���ҽ����Binder���ض��󷵻ظ�Ӧ�ó�����̣�App�ͻ�õ�һ��Session��������
-	���ұ�����ViewRootImpl��ĳ�Ա����mWindowSession��
+	AppÓëWMSµÄÁ¬½Ó£¬Ê×ÏÈ»á½¨Á¢Ò»¸öSessionµ½WMS£¬Ö®ºó¾Í»áÍ¨¹ýIWindowSession½Ó¿ÚÓëWMSÖÐµÄSessionÖ±½ÓÍ¨ÐÅ£¬
+	IWindowSessionÀàÊÇÊ²Ã´£¿ËüÖ¸ÏòÁËÒ»¸öÊµÏÖÁËIWindowSession½Ó¿ÚµÄSession´úÀí¶ÔÏó¡£
+	µ±Ó¦ÓÃ³ÌÐò½ø³ÌÆô¶¯µÚÒ»¸öActivity×é¼þµÄÊ±ºò£¬Ëü¾Í»áÇëÇóWMS·þÎñ·¢ËÍÒ»¸ö½¨Á¢Á¬½ÓµÄBinder½ø³Ì¼äÍ¨ÐÅÇëÇó¡£
+	WMS·þÎñ½ÓÊÕµ½Õâ¸öÇëÇóÖ®ºó£¬¾Í»áÔÚÄÚ²¿´´½¨Ò»¸öÀàÐÍÎªSessionµÄBinder±¾µØ¶ÔÏó£¬
+	²¢ÇÒ½«Õâ¸öBinder±¾µØ¶ÔÏó·µ»Ø¸øÓ¦ÓÃ³ÌÐò½ø³Ì£¬App¾Í»áµÃµ½Ò»¸öSession´úÀí¶ÔÏó£¬
+	²¢ÇÒ±£´æÔÚViewRootImplÀàµÄ³ÉÔ±±äÁ¿mWindowSessionÖÐ
 
-	��App�������Զ��Session��������mWindowSession֮��������WMS������ͨ��mWindowSession�����С�
-	������˵��ViewRootImplҪ���Ӵ��ڣ���ʹ��mWindowSession���������addToDisplay�������õ�Զ��Session�����addToDisplay����
+	µ±AppÓÐÁËÕâ¸öÔ¶¶ËSession´úÀí¶ÔÏómWindowSessionÖ®ºó£¬ËùÓÐÏòWMSµÄÇëÇó¶¼Í¨¹ýmWindowSessionÀ´½øÐÐ¡£
+	¾ÙÀýÀ´Ëµ£ºViewRootImplÒªÌí¼Ó´°¿Ú£¬¾ÍÊ¹ÓÃmWindowSession´úÀí¶ÔÏóµÄaddToDisplay·½·¨µ÷ÓÃµ½Ô¶¶ËSession¶ÔÏóµÄaddToDisplay·½·¨
 
 	
     */
@@ -348,7 +348,7 @@ public final class ViewRootImpl implements ViewParent,
 
     public ViewRootImpl(Context context, Display display) {
         mContext = context;
-        //������WindowSession����
+        //´´½¨ÁËWindowSession¶ÔÏó
         mWindowSession = WindowManagerGlobal.getWindowSession();
         mDisplay = display;
         mBasePackageName = context.getBasePackageName();
@@ -364,16 +364,16 @@ public final class ViewRootImpl implements ViewParent,
         mTempRect = new Rect();
         mVisRect = new Rect();
         mWinFrame = new Rect();
-         //Ҳ������W�Ķ���mWindow
+         //Ò²´´½¨ÁËWµÄ¶ÔÏómWindow
         mWindow = new W(this);
 		/*
-		W������ʲô��ViewRootImpl::W��������WMS�ṩ�ӿڣ���WMS����App�˵Ĵ��ڡ�
+		W¶ÔÏóÊÇÊ²Ã´£¿ViewRootImpl::W£ºÓÃÓÚÏòWMSÌá¹©½Ó¿Ú£¬ÈÃWMS¿ØÖÆApp¶ËµÄ´°¿Ú¡£
 		
-		���ɿ����Ǹ��������ܶ�ʱ������ViewRootImpl�еĹ��ܡ�
+		Ëü¿É¿´×÷ÊÇ¸ö´úÀí£¬ºÜ¶àÊ±ºò»áµ÷ÓÃViewRootImplÖÐµÄ¹¦ÄÜ¡£
 
-		W����������������Ա������mViewAncestor��mWindowSession����һͷ����App�˵�ViewRootImpl��
-		һͷ����WMS�е�Session����ʵ����IWindow�Ľӿڡ���ζ������App��WMS����������WMS�����ص�App�ˣ�
-		��ViewRootImpl�����õġ�
+		WµÄÉùÃ÷ÖÐÓÐÁ½¸ö³ÉÔ±±äÁ¿£ºmViewAncestorºÍmWindowSession£¬ËüÒ»Í·Á¬×ÅApp¶ËµÄViewRootImpl£¬
+		Ò»Í·Á¬×ÅWMSÖÐµÄSession£¬ÇÒÊµÏÖÁËIWindowµÄ½Ó¿Ú¡£ÒâÎ¶×ÅËüÊÇAppºÍWMSµÄÇÅÁº£¬ÊÇWMSÓÃÀ´»Øµ÷App¶Ë£¬
+		ÈÃViewRootImpl×öÊÂÓÃµÄ¡£
 
 		*/
 
@@ -513,7 +513,7 @@ public final class ViewRootImpl implements ViewParent,
                 // Schedule the first layout -before- adding to the window
                 // manager, to make sure we do the relayout before receiving
                 // any other events from the system.
-                // wwxx 1������requestLayout�������л���
+                // wwxx 1¡¢µ÷ÓÃrequestLayout·½·¨½øÐÐ»æÖÆ
                 requestLayout();
                 if ((mWindowAttributes.inputFeatures
                         & WindowManager.LayoutParams.INPUT_FEATURE_NO_INPUT_CHANNEL) == 0) {
@@ -523,10 +523,10 @@ public final class ViewRootImpl implements ViewParent,
                     mOrigWindowType = mWindowAttributes.type;
                     mAttachInfo.mRecomputeGlobalAttributes = true;
                     collectViewAttributes();
-                    //2������mWindowSession����View
+                    //2¡¢µ÷ÓÃmWindowSessionÌí¼ÓView
                     res = mWindowSession.addToDisplay(mWindow, mSeq, mWindowAttributes,
                             getHostVisibility(), mDisplay.getDisplayId(),
-                            mAttachInfo.mContentInsets, mInputChannel);//���д���󲿷��˶�֪���������WMS��IPCͨ�ŵ�
+                            mAttachInfo.mContentInsets, mInputChannel);//ÕâÐÐ´úÂë´ó²¿·ÖÈË¶¼ÖªµÀÕâ¸öÊÇÓëWMS×öIPCÍ¨ÐÅµÄ
                 } catch (RemoteException e) {
                     mAdded = false;
                     mView = null;
@@ -844,9 +844,9 @@ public final class ViewRootImpl implements ViewParent,
     }
 
 	/*
-	����requestLayout���������ȼ����ǲ������߳����޸�UI��
-	Ȼ�� ����scheduleTraversals����scheduleTraversals��ʼִ���ˣ�
-	�Ż���������Ϥ��onDraw,onLayout,onMeasure
+	¿´¿´requestLayout·½·¨£¬Ê×ÏÈ¼ìÑéÊÇ²»ÊÇÖ÷Ïß³ÌÔÚÐÞ¸ÄUI£¬
+	È»ºó µ÷ÓÃscheduleTraversals£¬ÔÚscheduleTraversals¿ªÊ¼Ö´ÐÐÁË£¬
+	²Å»áÓÐÎÒÃÇÊìÏ¤µÄonDraw,onLayout,onMeasure
 	*/
     @Override
     public void requestLayout() {
@@ -1154,7 +1154,9 @@ public final class ViewRootImpl implements ViewParent,
 
         return windowSizeMayChange;
     }
-
+    /*wwxx Step 1
+    这个函数定义在文件 frameworks/base/core/java/android/view/ViewRoot.java中，它的实现很复杂，一共有600+行，不过大部分代码都是用来计算Activity窗口的大小的，我们分段来阅读
+    */
     private void performTraversals() {
         // cache mView since it is used so much below...
         final View host = mView;
@@ -1205,7 +1207,19 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         mWindowAttributesChangesFlag = 0;
+        /*wwxx
+        这段代码用来获得Activity窗口的当前宽度desiredWindowWidth和当前高度desiredWindowHeight。
 
+            注意，Activity 窗口当前的宽度和高度是保存 ViewRoot 类的成员变量 mWinFrame 中的。ViewRoot类的另外两个成员变量 mWidth 和 mHeight 也是用来描述 Activity 窗口当前的宽度和高度的，
+        但是它们的值是由应用程序进程上一次主动请求 WindowManagerService 服务计算得到的，并且会一直保持不变到应用程序进程下一次再请求 WindowManagerService 服务来重新计算为止。
+        Activity 窗口的当前宽度和高度有时候是被 WindowManagerService 服务主动请求应用程序进程修改的，修改后的值就会保存在 ViewRoot 类的成员变量 mWinFrame 中，
+        它们可能会与 ViewRoot 类的成员变量 mWidth 和 mHeight 的值不同。
+            如果Activity窗口是第一次被请求执行测量、布局和绘制操作，即 ViewRoot 类的成员变量 mFirst 的值等于true，那么它的当前宽度 desiredWindowWidth 和当前高度 desiredWindowHeight 就等于
+        屏幕的宽度和高度，否则的话，它的当前宽度 desiredWindowWidth 和当前高度 desiredWindowHeight 就等于保存在ViewRoot类的成员变量 mWinFrame 中的宽度和高度值。
+            如果Activity窗口不是第一次被请求执行测量、布局和绘制操作，并且Activity窗口主动上一次请求WindowManagerService服务计算得到的宽度 mWidth 和高度 mHeight 不等于Activity窗口的
+        当前宽度 desiredWindowWidth 和当前高度 desiredWindowHeight ，那么就说明 Activity 窗口的大小发生了变化，这时候变量 windowResizesToFitContent 的值就会被标记为true，
+        以便接下来可以对Activity窗口的大小变化进行处理。
+        */
         Rect frame = mWinFrame;
         if (mFirst) {
             mFullRedrawNeeded = true;
@@ -1277,7 +1291,36 @@ public final class ViewRootImpl implements ViewParent,
 
         // Execute enqueued actions on every traversal in case a detached view enqueued an action
         getRunQueue().executeActions(attachInfo.mHandler);
+        /*wwxx   我们继续往下阅读代码：
+        这段代码用来在Activity窗口主动请求WindowManagerService服务计算大小之前，对它的顶层视图进行一次测量操作。
+        在分析这段代码之前，我们首先解释一下ViewRoot类的成员变量 mAttachInfo 和 mPendingContentInsets 、 mPendingVisibleInsets 。
+        ViewRoot类的成员变量 mAttachInfo 指向的一个AttachInfo对象，这个AttachInfo对象用来描述Activity窗口的属性，例如，这个AttachInfo对象的成员变量 mContentInsets 和 mVisibleInsets 
+        分别用来描述Activity窗口上一次主动请求WindowManagerService服务计算得到的内容边衬大小和可见边衬大小，即Activity窗口的当前内容边衬大小和可见边衬大小。
+        ViewRoot类的成员变量 mPendingContentInsets 和 mPendingVisibleInsets 也是用来描述Activity窗口的内容边衬大小和可见边衬大小的，不过它们是由WindowManagerService服务主动请求Activity窗口设置的，
+        但是尚未生效。
 
+        我们分两种情况来分析这段代码。
+        第一种情况是Activity窗口是第一次被请求执行测量、布局和绘制操作，即ViewRoot类的成员变量 mFirst 的值等于true，那么这段代码在测量Activity窗口的顶层视图host的大小之前，
+        首先会调用这个顶层视图host的成员函数 fitSystemWindows 来设置它的四个内边距（ mPaddingLeft ，mPaddingTop , mPaddingRight ，mPaddingBottom ）的大小设置为Activity窗口的初始化内容边衬大小。
+        这样做的目的是可以在Activity窗口的四周留下足够的区域来放置可能会出现的系统窗口，也就是状态栏和输入法窗口。
+
+        第二种情况是Activity窗口不是第一次被请求执行测量、布局和绘制操作，即ViewRoot类的成员变量 mFirst 的值等于false，那么这段代码就会检查Activity窗口是否被 WindowManagerService 
+        服务主动请求设置了一个新的内容边衬大小 mPendingContentInsets 和一个新的可见边衬大小 mPendingVisibleInsets 。
+        如果是的话，那么就会分别将它们保存在ViewRoot类的成员变量 mAttachInfo 所指向的一个 AttachInfo 对象的成员变量 mContentInsets 和成员变量 mVisibleInsets 中。
+        注意，如果 Activity窗口被 WindowManagerService服务主动请求设置了一个新的内容边衬大小 mPendingContentInsets，那么这段代码同时还需要同步调用Activity窗口的顶层视图host的成员函数
+        fitSystemWindows来将它的四个内边距（mPaddingLeft，mPaddingTop，mPaddingRight，mPaddingBottom）的大小设置为新的内容边衬大小，并且将变量 insetsChanged 的值设置为true，
+        表明Activity窗口的内容边衬大小发生了变化。
+
+        在第二种情况下，如果Activity窗口的宽度被设置为 ViewGroup.LayoutParams.WRAP_CONTENT 或者高度被设置为 ViewGroup.LayoutParams.WRAP_CONTENT， 
+        那么就意味着Activity窗口的大小要等于内容区域的大小。但是由于Activity窗口的大小是需要覆盖整个屏幕的，因此，这时候就会Activity窗口的当前宽度 desiredWindowWidth 和当前高度 desiredWindowHeight 设置为屏幕的宽度和高度。
+        也就是说，如果我们将Activity窗口的宽度和高度设置为 ViewGroup.LayoutParams.WRAP_CONTENT，实际上就意味着它的宽度和高度等于屏幕的宽度和高度。
+        这种情况也意味着Acitivity窗口的大小发生了变化，因此，就将变量 windowResizesToFitContent 的值设置为true。
+
+         经过上面的一系列处理之后，这段代码就会调用ViewRoot类的成员函数 getRootMeasureSpec 来根据Activity窗口的当前宽度和宽度测量规范以及高度和高度测量规范来计算得到它的顶层视图host的宽度测量规范
+         childWidthMeasureSpec和高度测量规范childHeightMeasureSpec。有了这两个规范之后，就可以调用Activity窗口的顶层视图host的成员函数measure来执行大小测量的工作了。
+
+
+        */
         boolean insetsChanged = false;
 
         boolean layoutRequested = mLayoutRequested && !mStopped;
@@ -1391,7 +1434,29 @@ public final class ViewRootImpl implements ViewParent,
             // layout pass.
             mLayoutRequested = false;
         }
+        /*wwxx
+        我们继续往下阅读代码：
+        这段代码主要是做两件事情。
 
+       第一件事情是检查是否需要处理Activity窗口的大小变化事件。如果满足以下条件，那么就需要处理，即将变量windowShouldResize的值设置为true：
+
+       1. ViewRoot类的成员变量 layoutRequested 的值等于true，这说明应用程序进程正在请求对Activity窗口执行一次测量、布局和绘制操作；
+
+       2. 变量 windowSizeMayChange 的值等于true，这说明前面检测到了Activity窗口的大小发生了变化；
+
+       3. 前面我们已经Activity窗口的顶层视图host的大小重新进行了测量。
+       如果测量出来的宽度 host.mMeasuredWidth 和高度 host.mMeasuredHeight 和Activity窗口的当前宽度 mWidth 和高度 mHeight 一样，那么即使条件1和条件2能满足，
+       那么也是可以认为是Activity窗口的大小是没有发生变化的。换句话说，只有当测量出来的大小和当前大小不一致时，才认为Activity窗口大小发生了变化。
+       另一方面，如果测量出来的大小和当前大小一致，但是Activity窗口的大小被要求设置成 WRAP_CONTENT，即设置成和屏幕的宽度 desiredWindowWidth 和高度 desiredWindowHeight 一致，
+       但是 WindowManagerService 服务请求Activity窗口设置的宽度 frame.width() 和高度 frame.height() 与它们不一致，而且与Activity窗口上一次请求 WindowManagerService 服务计算的
+       宽度 mWidth 和高度 mHeight 也不一致，那么也是认为Activity窗口大小发生了变化的。
+
+        第二件事情是检查Activity窗口是否需要指定有额外的内容边衬区域和可见边衬区域。
+        如果有的话，那么变量 attachInfo 所指向的一个 AttachInfo 对象的成员变量 mTreeObserver 所描述的一个 TreeObserver 对象的成员函数 hasComputeInternalInsetsListerner 的返回值
+         ComputeInternalInsets就会等于true。Activity窗口指定额外的内容边衬区域和可见边衬区域是为了放置一些额外的东西。
+
+
+        */
         boolean windowShouldResize = layoutRequested && windowSizeMayChange
             && ((mWidth != host.getMeasuredWidth() || mHeight != host.getMeasuredHeight())
                 || (lp.width == ViewGroup.LayoutParams.WRAP_CONTENT &&
@@ -1408,7 +1473,28 @@ public final class ViewRootImpl implements ViewParent,
 
         boolean insetsPending = false;
         int relayoutResult = 0;
+        /*wwxx
+         这段代码以及接下来的两段代码都是在满足下面的条件之一的情况下执行的：
+        1. Activity窗口是第一次执行测量、布局和绘制操作，即ViewRoot类的成员变量 mFirst 的值等于true。
 
+        2. 前面得到的变量 windowShouldResize 的值等于true，即Activity窗口的大小的确是发生了变化。
+
+        3. 前面得到的变量 insetsChanged 的值等于true，即Activity窗口的内容区域边衬发生了变化。
+
+        4. Activity窗口的可见性发生了变化，即变量 viewVisibilityChanged 的值等于true。
+
+        5. Activity窗口的属性发生了变化，即变量 params 指向了一个 WindowManager.LayoutParams 对象。
+
+        在满足上述条件之一，并且Activity窗口处于可见状态，即变量 viewVisibility 的值等于 View.VISIBLE ，
+        那么就需要检查接下来请求 WindowManagerService 服务计算大小时，是否要告诉 WindowManagerService 服务它指定了额外的内容区域边衬和可见区域边衬，
+        但是这些额外的内容区域边衬和可见区域边衬又还有确定。这种情况发生在Activity窗口第一次执行测量、布局和绘制操作或者由不可见变化可见时。
+        因此，当前面得到的变量 computesInternalInsets 等于true时，即Activity窗口指定了额外的内容区域边衬和可见区域边衬，那么就需要检查ViewRoot类的成员变量 mFirst 
+        或者变量 viewVisibilityChanged 的值是否等于true。如果这些条件能满足，那么变量 insetsPending 的值就会等于true，表示Activity窗口有额外的内容区域边衬和可见区域边衬等待指定。
+
+        
+
+
+        */
         if (mFirst || windowShouldResize || insetsChanged ||
                 viewVisibilityChanged || params != null) {
 
@@ -1429,7 +1515,19 @@ public final class ViewRootImpl implements ViewParent,
                 mSurfaceHolder.mSurfaceLock.lock();
                 mDrawingAllowed = true;
             }
+            /*wwxx
+                这段代码主要就是调用ViewRoot类的另外一个成员函数 relayoutWindow 来请求WindowManagerService服务计算Activity窗口的大小以及内容区域边衬大小和可见区域边衬大小。
+             计算完毕之后，Activity窗口的大小就会保存在ViewRoot类的成员变量 mWinFrame 中，而Activity窗口的内容区域边衬大小和可见区域边衬大小分别保存在ViewRoot类的成员变量
+             mPendingContentInsets 和 mPendingVisibleInsets 中。
+                如果这次计算得到的Activity窗口的内容区域边衬大小 mPendingContentInsets 和可见区域边衬大小 mPendingVisibleInsets 与上一次计算得到的不一致，
+            即与ViewRoot类的成员变量 mAttachInfo 所指向的一个AttachInfo对象的成员变量 mContentInsets 和 mVisibleInsets 所描述的大小不一致，
+            那么变量 contentInsetsChanged 和 visibleInsetsChanged 的值就会等于true，表示Activity窗口的内容区域边衬大小和可见区域边衬大小发生了变化。
 
+                由于变量 frame 和 ViewRoot 类的成员变量 mWinFrame 引用的是同一个Rect对象，因此，这时候变量frame描述的也是Activity窗口请求WindowManagerService服务计算之后得到的大小。
+            这段代码分别将计算得到的Activity窗口的左上角坐标保存在变量 attachInfo 所指向的一个 AttachInfo 对象的成员变量 mWindowLeft 和 mWindowTop 中，
+            并且将计算得到的Activity窗口的宽度和高度保存在ViewRoot类的成员变量mWidth和mHeight中。
+
+            */
             boolean hwInitialized = false;
             boolean contentInsetsChanged = false;
             boolean hadSurface = mSurface.isValid();
@@ -1695,6 +1793,19 @@ public final class ViewRootImpl implements ViewParent,
             }
 
             if (!mStopped) {
+                /*wwxx
+                这段代码用来检查是否需要重新测量Activity窗口的大小。如果满足以下条件之一，那么就需要重新测量：
+                1. Activity窗口的触摸模式发生了变化，并且由此引发了Activity窗口当前获得焦点的控件发生了变化，即变量 focusChangedDueToTouchMode 的值等于true。
+                    这个检查是通过调用ViewRoot类的成员函数 ensureTouchModeLocally 来实现的。
+
+                2. Activity窗口前面测量出来的宽度host.mMeasuredWidth 和高度 host.mMeasuredHeight 不等于WindowManagerService服务计算出来的宽度 mWidth 和高度 mHeight 。
+
+                3. Activity窗口的内容区域边衬大小和可见区域边衬大小发生了变化，即前面得到的变量 contentInsetsChanged 的值等于true。
+
+                重新计算了一次之后，如果Activity窗口的属性 lp 表明需要对测量出来的宽度width和高度height进行扩展，即变量lp所指向的一个WindowManager.LayoutParams对象的
+                成员变量 horizontalWeight 和 verticalWeight 的值大于0.0，那么就需要对Activity窗口的顶层视图host的最大可用空间进行扩展后再进行一次测量工作。
+
+                */
                 boolean focusChangedDueToTouchMode = ensureTouchModeLocally(
                         (relayoutResult&WindowManagerGlobal.RELAYOUT_RES_IN_TOUCH_MODE) != 0);
                 if (focusChangedDueToTouchMode || mWidth != host.getMeasuredWidth()
@@ -1766,7 +1877,40 @@ public final class ViewRootImpl implements ViewParent,
                 attachInfo.mWindowTop = frame.top;
             }
         }
+        /*wwxx
+        我们继续往下阅读最后一段代码：
+        经过前面漫长的操作后，Activity窗口的大小测量工作终于尘埃落定，这时候就可以对Activity窗口的内容进行布局了，前提是ViewRoot类的成员变量 layoutRequested 的值等于true。
+        对Activity窗口的内容进行布局是通过调用它的顶层视图host的成员函数 layout 来实现的，
+        这个过程可以参考前面 Android应用程序窗口（Activity）的测量（Measure）、布局（Layout）和绘制（Draw）过程分析一文。
 
+
+        从前面的描述可以知道，当变量 computesInternalInsets 的值等于true时，就表示Activity窗口指定有额外的内容区域边衬和可见区域边衬，这时候就是时候把它们告诉给WindowManagerService服务了，
+        以便WindowManagerService服务下次可以知道Activity窗口的真实布局。
+        Activity窗口额外指定的内容区域边衬大小和可见区域边衬大小是通过调用变量 attachInfo 所指向的一个 AttachInfo 对象的成员变量 mTreeObserver 所描述的一个TreeObserver对象的成员函数
+        dispatchOnComputeInternalInsets 来计算的。计算完成之后，就会保存在变量attachInfo所指向的一个AttachInfo对象的成员变量 mGivenInternalInsets 中，
+        并且会通过ViewRoot类的静态成员变量 mWindowSession 所指向一个Binder代理对象来设置到WindowManagerService服务中去。
+
+        注意，如果ViewRoot类的成员变量 mTranslator 指向了一个Translator对象，那么就说明Activity窗口是运行兼容模式中，这时候就需要将前面计算得到的内容区域边衬大小和可见区域边衬大小转化到兼容模式下，
+        然后才可以保存在变量attachInfo所指向的一个AttachInfo对象的成员变量 mGivenInternalInsets 中，以及设置到WindowManagerService服务中去。
+
+        另外，只有前面得到的变量 insetsPending 的值等于true，即Activity窗口正在等待告诉 WindowManagerService 服务它有额外指定的内容区域边衬和可见区域边衬，或者Activty窗口额外指定的内容区域边衬和可见区域边衬发生了变化，
+        即Activty窗口上一次额外指定的内容区域边衬和可见区域边衬 mLastGivenInsets 不等于当前这次指定的内容区域边衬和可见区域边衬insets，
+        Activity窗口额外指定的内容区域边衬和可见区域边衬才会被设置到WindowManagerService服务中去。
+
+
+        ViewRoot类的成员函数再接下来的工作就是绘制Activity窗口的UI了，这个过程同样可以参考前面Android应用程序窗口（Activity）的测量（Measure）、布局（Layout）和绘制（Draw）过程分析一文。
+
+        接下来，我们继续分析ViewRoot类的成员函数 relayoutWindow 的实现，以便可以了解它是如何请求WindowManagerService服务计算Activity窗口的大小的。
+
+        public final class ViewRoot extends Handler implements ViewParent,
+                View.AttachInfo.Callbacks {
+            ......
+             
+            private int relayoutWindow(WindowManager.LayoutParams params, int viewVisibility,
+                    boolean insetsPending) throws RemoteException {
+
+
+        */
         final boolean didLayout = layoutRequested && !mStopped;
         boolean triggerGlobalLayoutListener = didLayout
                 || attachInfo.mRecomputeGlobalAttributes;
@@ -5110,6 +5254,40 @@ public final class ViewRootImpl implements ViewParent,
                 params.type = mOrigWindowType;
             }
         }
+        /*wwxx Step 2
+        从前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文可以知道，ViewRoot类的静态成员变量 mWindowSession 是一个Binder代理对象，
+        它引用了运行在WindowManagerService服务这一侧的一个Session对象，ViewRoot类的成员函数 relayoutWindow 通过调用这个Session对象的成员函数 relayout 
+        来请求WindowManagerService服务计算Activity窗口的大小，其中，传递给WindowManagerService服务的参数包括：
+
+        1. ViewRoot类的成员变量 mWindow ，用来标志要计算的是哪一个Activity窗口的大小。
+
+        2. Activity窗口的顶层视图经过测量后得到的宽度和高度。注意，传递给WindowManagerService服务的宽度和高度是已经考虑了Activity窗口所设置的缩放因子了的。
+
+        3. Activity窗口的可见状态，即参数 viewVisibility 。
+
+        4. Activity窗口是否有额外的内容区域边衬和可见区域边衬等待告诉给WindowManagerService服务，即参数 insetsPending 。
+
+        5. ViewRoot类的成员变量 mWinFrame ，这是一个输出参数，用来保存WindowManagerService服务计算后得到的Activity窗口的大小。
+
+        6. ViewRoot类的成员变量 mPendingContentInsets ，这是一个输出参数，用来保存WindowManagerService服务计算后得到的Activity窗口的内容区域边衬大小。
+
+        7. ViewRoot类的成员变量 mPendingVisibleInsets ，这是一个输出参数，用来保存WindowManagerService服务计算后得到的Activity窗口的可见区域边衬大小。
+
+        8. ViewRoot类的成员变量 mPendingConfiguration ，这是一个输出参数，用来保存WindowManagerService服务返回来的Activity窗口的配置信息。
+
+        9. ViewRoot类的成员变量 mSurface ，这是一个输出参数，用来保存WindowManagerService服务返回来的Activity窗口的绘图表面。
+
+        得到了Activity窗口的大小以及内容区域边衬大小和可见区域边衬大小之后，如果Activity窗口是运行在兼容模式中，即ViewRoot类的成员变量 mTranslator 指向了一个Translator对象，
+
+        那么就需要调用它的成员函数 translateRectInScreenToAppWindow 来对它们进行转换。
+
+        接下来，我们继续分析Session类的成员函数 relayout，以便可以了解WindowManagerService服务是如何计算一个Activity窗口的大小的。
+
+        Session.relayout  relayout 在 Session.java中----> relayoutWindow()在 WindowManagerService.java 中。去看看
+
+
+
+        */
         int relayoutResult = mWindowSession.relayout(
                 mWindow, mSeq, params,
                 (int) (mView.getMeasuredWidth() * appScale + 0.5f),

@@ -180,7 +180,10 @@ final class Session extends IWindowSession.Stub
     public void remove(IWindow window) {
         mService.removeWindow(this, window);
     }
-
+    /*wwxx Step 3
+    Session类的成员函数relayout的实现很简单，它只是调用了WindowManagerService类的成员函数relayoutWindow来进一步计算参数window所描述的一个Activity窗品的大小，
+    接下来我们就继续分析WindowManagerService类的成员函数relayoutWindow的实现。去看看。
+    */
     public int relayout(IWindow window, int seq, WindowManager.LayoutParams attrs,
             int requestedWidth, int requestedHeight, int viewFlags,
             int flags, Rect outFrame, Rect outOverscanInsets, Rect outContentInsets,
@@ -456,7 +459,7 @@ final class Session extends IWindowSession.Stub
         if (mSurfaceSession == null) {
             if (WindowManagerService.localLOGV) Slog.v(
                 WindowManagerService.TAG, "First window added to " + this + ", creating SurfaceSession");
-            mSurfaceSession = new SurfaceSession();// //wwxx ������������Ӧ��SurfaceSession
+            mSurfaceSession = new SurfaceSession();// //wwxx ´´½¨´°¿ÚËù¶ÔÓ¦µÄSurfaceSession
             if (WindowManagerService.SHOW_TRANSACTIONS) Slog.i(
                     WindowManagerService.TAG, "  NEW SURFACE SESSION " + mSurfaceSession);
             mService.mSessions.add(this);

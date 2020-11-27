@@ -468,7 +468,54 @@ final class WindowState implements WindowManagerPolicy.WindowState {
     public String getOwningPackage() {
         return mAttrs.packageName;
     }
+    /*wwxx Step 10
+    WindowState类的成员变量 mHaveFrame 用来描述一个窗口的大小是否计算过了。当WindowState类的成员函数 computeFrameLw 被调用的时候，就说明一个相应的窗口的大小得到计算了，
+    因此，WindowState类的成员函数 computeFrameLw 一开始就会将成员变量 mHaveFrame 的值设置为true。
 
+    回忆一下，在前面的Step 9中提到，参数pf描述的是父窗口的大小，参数df描述的是屏幕的大小，参数cf描述的内容区域大小，参数vf描述的是可见区域大小，
+    接下来我们就分析WindowState类的成员函数 computeFrameLw 是如何利用这些参数来计算一个窗口的大小的。
+
+    WindowState类的成员变量 mContainingFrame 和 mDisplayFrame 描述的是当前正在处理的窗口的父窗口和屏幕的大小，它们刚好就分别等于参数pf和df的大小，
+    因此，函数就直接将参数pf和df的值分别保存在WindowState类的成员变量 mContainingFrame 和 mDisplayFrame 中。
+    如果当前正在处理的窗口运行在兼容模式，即WindowState类的成员变量 mAttrs 所指向的一个WindowManager.LayoutParams对象的成员变量flags的 FLAG_COMPATIBLE_WINDOW 位等于1，
+    那么就需要将其父窗口的大小限制 mContainingFrame 在兼容模式下的屏幕区域中。兼容模式下的屏幕区域保存在 WindowManagerService 类的成员变量 mCompatibleScreenFrame 中，
+    将父窗口的大小 mContainingFrame 与它执行一个相交操作，就可以将父窗品的大小限制兼容模式下的屏幕区域中。在当前正在处理的窗口运行在兼容模式的情况下，如果它的大小被限制在了兼容模式下的屏幕区域之中，
+    即WindowState类的成员变量 mAttrs 所指向的一个WindowManager.LayoutParams对象的成员变量flags的 FLAG_LAYOUT_NO_LIMITS 位等于0，
+    那么同样需要将屏幕大小 mDisplayFrame 限制在兼容模式下的屏幕区域 mCompatibleScreenFrame ，这也是通过执行一个相交操作来完成的。
+
+
+    WindowState类的成员变量 mContentFrame 和 mVisibleFrame 描述的是当前正在处理的窗口的内容区域和可见区域大小，它们刚好就分别等于参数cf和vf的大小，因此，
+    函数就直接将参数cf和vf的值分别保存在WindowState类的成员变量 mContainingFrame 和 mDisplayFrame 中。现在，就剩下窗口的大小还没有计算。
+    一旦窗口大小确定下来之后，就可以继续计算窗口的内容区域边衬和可见区域边衬大小了。接下来我们就继续分析窗口大小的计算过程。
+
+    WindowState类的成员变量 mFrame 描述的就是当前正在处理的窗品的大小，我们的目标就是计算它的值。一个窗口的大小是受以下因素影响的：
+
+    1. 是否指定了缩放因子。如果一个窗口的大小被指定了缩放因子，即WindowState类的成员变量 mAttrs 所指向的一个WindowManager.LayoutParams对象的成员变量flags的 FLAG_SCALED 位等于1，
+        那么该窗口的大小就是在它的布局参数中指定的，即是由WindowState类的成员变量mAttrs所指向的一个WindowManager.LayoutParams对象的成员变量 width 和 height 所指定的。
+        但是，如果在布局参数中指定的窗口宽度或者高度小于0，那么就会使用其父窗口的大小来作为当前窗口的大小。当前窗口的父窗口的宽度和高度分别保存在变量pw和ph中。
+
+    2. 是否指定了等于父窗口的大小。如果一个窗口的大小被指定为其父窗口的大小，即WindowState类的成员变量 mAttrs 所指向的一个WindowManager.LayoutParams对象的成员变量 width和height 的值等于
+        mAttrs.MATCH_PARENT，那么该窗口的大小就会等于其父窗口的大小，即等于变量pw和ph所描述的宽度和高度。另一方面，如果一个窗口的大小没有指定为其父窗口的大小的话，
+        那么它的大小就会等于应用程序进程请求WindowManagerService所设置的大小，即等于WindowState类的成员变量 mRequestedWidth 和 mRequestedHeight 所描述的宽度和高度。
+
+    经过上述2个操作之后，我们就初步地得到了窗口的宽度w和高度h，但是，它们还不是最终的窗口大小，还要进一步地根据窗口的Gravity属性来作调整，这个调整分两步进行：
+
+    内容区域边衬和可见区域边衬大小的计算很简单的，只要将窗口的大小frame，即WindowState类的成员变量mFrame所描述的区域，分别减去变量 content 和 visible ，
+    即WindowState类的成员变量 mContentFrame 和 mVisibleFrame 所描述的区域，就可以得到窗口的内容区域边衬和可见区域边衬大小，
+    它们分别保存在WindowState类的成员变量 mContentInsets 和 mVisibleInsets 中。注意，在计算窗口的内容区域边衬和可见区域边衬大小之前，首先要保证窗口的内容区域和可见区域包含在整个窗口区域中，
+    这一点是由中间的8个if语句来保证的。
+
+    窗口上一次的大小保存在变量fw和fh中。如果当前正在处理的窗口是一个壁纸窗口，即WindowState类的成员变量mIsWallpaper的值等于true，并且该窗口的大小发生了变化，
+    即变量fw和fh的所描述的窗口大小不等于变量frame描述的窗口大小，那么就需要调用WindowManagerService类的成员函数updateWallpaperOffsetLocked来更新壁纸的位置。
+    在后面的文章中，我们再详细描述系统的壁纸窗口的位置是如何计算的。
+
+    这一步执行完成之后，一个窗口的大小就计算完成了。从计算的过程可以知道，整个窗口大小保存在WindowState类的成员变量mFrame中，
+    而窗品的内容区域边衬大小和可见区域边衬大小分别保在WindowState类的成员变量mContentInsets和mVisibleInsets中。这些值最终会通过前面的Step 4返回给应用程序进程。
+
+    返回到前面的Step 7中，即WindowManagerService类的成员函数 performLayoutLockedInner，接下来就会调用PhoneWindowManager类的成员函数 finishLayoutLw 来结束当前这轮窗口大小的计算工作。
+
+
+    */
     @Override
     public void computeFrameLw(Rect pf, Rect df, Rect of, Rect cf, Rect vf, Rect dcf) {
         mHaveFrame = true;

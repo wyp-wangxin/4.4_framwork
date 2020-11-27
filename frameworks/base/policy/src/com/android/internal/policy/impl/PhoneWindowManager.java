@@ -2620,7 +2620,39 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
         contentInset.setEmpty();
     }
+    /*wwxx
+    在分析PhoneWindowManager类的成员函数 beginLayoutLw 的实现之前，我们首先介绍 PhoneWindowManager 类的五组成员变量。
 
+        第一组成员变量是 mSystemRight 和 mSystemBottom ，它们分别用来描述当前这轮窗口大小计算过程的屏幕宽度和高度。
+
+        第二组成员变量是 mCurLeft 、 mCurTop 、 mCurRight 和 mCurBottom ，它们组成一个四元组（mCurLeft, mCurTop, mCurRight, mCurBottom），
+        用来描述当前这轮窗口大小计算过程的屏幕装饰区，它对应于前面所提到的Activity窗口的可见区域边衬。
+
+        第三组成员变量是 mContentLeft 、 mContentTop 、 mContentRight 和 mContentBottom ，它们组成一个四元组（mContentLeft, mContentTop, mContentRight, mContentBottom），
+        也是用来描述当前这轮窗口大小计算过程的屏幕装饰区，不过它对应的是前面所提到的Activity窗口的内容区域边衬。
+
+        第四组成员变量是 mDockLeft 、 mDockTop 、 mDockRight 、 mDockBottom 和 mDockLayer ，其中，前四个成员变量组成一个四元组（mDockLeft, mDockTop, mDockRight, mDockBottom），
+        用来描述当前这轮窗口大小计算过程中的输入法窗口所占据的位置，后一个成员变量 mDockLayer 用来描述输入法窗品的Z轴位置。
+
+        第五组成员变量是 mTmpParentFrame 、 mTmpDisplayFrame 、 mTmpContentFrame 和 mTmpVisibleFrame ，它们是一组临时Rect区域，用来作为参数传递给具体的窗口计算大小的，
+        避免每次都创建一组新的Rect区域来作来参数传递窗口。
+
+        除了这五组成员变量之外，PhoneWindowManager类还有一个成员变量 mStatusBar ，它的类型为WindowState，用来描述系统的状态栏。
+
+        理解了这些成员变量的含义之后，PhoneWindowManager类的成员函数 beginLayoutLw 的实现就容易理解了，它主要做了以下两件事情：
+
+        1. 初始化前面所提到的四组成员变量，其中， mSystemRight 和 mSystemBottom 设置为参数 displayWidth 和 displayHeight 所指定的屏幕宽度和高度，并且使得（mCurLeft, mCurTop, mCurRight, mCurBottom）、
+        （mContentLeft, mContentTop, mContentRight, mContentBottom）和（mDockLeft, mDockTop, mDockRight, mDockBottom）这三个区域的大小等于屏幕的大小。
+
+        2. 计算状态栏的大小。状态栏的大小一经确定，并且它是可见的，那么就会修改成员变量mCurLeft、mContentLeft和mDockLeft的值为状态栏的所占据的区域的下边界位置，这样就可以将
+        （mCurLeft, mCurTop, mCurRight, mCurBottom）、（mContentLeft, mContentTop, mContentRight, mContentBottom）和（mDockLeft, mDockTop, mDockRight, mDockBottom）
+        这三个区域限制为剔除状态栏区域之后所得到的屏幕区域。
+
+        还有另外一个地方需要注意的是，输入法窗口的Z轴被初始化为0x10000000，这个值是相当大的了，可以保证输入法窗口作为顶层窗口出现。
+
+        这一步执行完成之后，返回到前面的 Step 7中，即WindowManagerService类的成员函数 performLayoutLockedInner ，
+        接下来就会调用PhoneWindowManager类的成员函数 layoutWindowLw 来计算系统中各个可见窗口的大小。
+    */
     /** {@inheritDoc} */
     @Override
     public void beginLayoutLw(boolean isDefaultDisplay, int displayWidth, int displayHeight,
@@ -2948,7 +2980,46 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
         }
     }
+    /*wwxx Step 9
+    第一个参数 win 描述的是当前要计算大小的窗口，第二个参数 attrs 描述的是窗口win的布局参数，第三个参数 attached 描述的是窗口win的父窗口，如果它的值等于null，就表示窗口win没有父窗口。
 
+    PhoneWindowManager类的成员函数 layoutWindowLw 会根据窗口win的是子窗口还是全屏窗口及其软键盘显示模式来决定它的大小如何计算。这里我们只关注输入法窗口和非全屏的Activity窗口的大小计算方式，
+    其它类型的窗口大小计算方式是差不多的。
+
+    从前面的Step 8可以知道，系统的状态栏大小已经计算过了，因此，PhoneWindowManager类的成员函数 layoutWindowLw 如果发现参数win描述的正好是状态栏的话，它就什么也不做就返回了。
+
+    在计算一个窗口的大小的时候，我们需要四个参数。第一个参数是父窗口的大小 pf ，第二个参数是屏幕的大小 df ，第三个参数是内容区域边衬大小 cf ，第四个参数是可见区域边衬大小 vf 。 
+
+    如果参数 win 描述的是输入法窗口，即参数 attrs 所描述的一个 WindowManager.LayoutParams 对象的成员变量type的值等于 TYPE_INPUT_METHOD ，
+
+    那么上述四个用来计算窗口大小的区域pf、df、cf和vf就等于 PhoneWindowManager 类的成员变量 mDockLeft 、 mDockTop 、 mDockRight 和 mDockBottom 所组成的区域的大小。
+    
+    如果参数 win 描述的是一个非全屏的Activity窗口，即参数 attrs 所描述的一个WindowManager.LayoutParams对象的成员变量flags的 FLAG_LAYOUT_IN_SCREEN 位和 FLAG_LAYOUT_INSET_DECOR 位等于1，
+    那么PhoneWindowManager类的成员函数layoutWindowLw就会继续检查参数 attached 的值是否不等于null。如果不等于null的话，那么就说明参数win所描述的一个非全屏的Activity窗口附加在其它窗口上，
+    即它具有一个父窗口，这时候就会调用另外一个成员函数 setAttachedWindowFrames 来计算它的大小。 
+
+    接下来我们就只关注参数win描述的是一个非全屏的、并且没有附加到其它窗口的Activity窗口的大小计算过程。
+
+    首先，父窗口大小pf和屏幕大小df都会被设置为整个屏幕区域的大小。
+
+    其次，可见区域边衬大小vf被设置为PhoneWindowManager类的成员变量mCurLeft、mCurTop、mCurRight和mCurBottom所组成的区域的大小。
+
+    第三，内容区域边衬大小cf的计算相对复杂一些，需要考虑窗口win的软键盘显示模式sim的值。如果变量sim的 SOFT_INPUT_ADJUST_RESIZE 位等于1，那么就意味着窗口win在出向输入法窗口的时候，
+    它的内容要重新进行排布，避免被输入法窗口挡住，因此，这时候窗口win的内容区域大小就会等于PhoneWindowManager类的成员变量 mContentLeft 、 mContentTop 、 mContentRight和 mContentBottom  
+    所组成的区域的大小。另一方面，如果变量sim的 SOFT_INPUT_ADJUST_RESIZE 位等于0，那么就意味着窗口win在出向输入法窗口的时候，它的内容不需要重新进行排布，
+    这时候它的内容区域大小就会等于 PhoneWindowManager 类的成员变量mDockLeft、mDockTop、mDockRight和mDockBottom所组成的区域的大小。
+    注意，PhoneWindowManager类的成员变量mDockLeft、mDockTop、mDockRight和mDockBottom所组成的区域的大小并不是等于输入法窗口的大小的，而是包含了输入法窗口所占据的区域的大小，
+    这就意味着输入法窗口与窗口win会有重叠的部分，或者说输入法窗口覆盖了窗口win的一部分。
+
+    得到了用来计算窗口win四个参数pf、 df、cf和vf之后，就可以调用参数win所描述的一个WindowState对象的成员函数 computeFrameLw 来计算窗口win的具体大小了。
+    计算的结果便得到了窗口win的大小，以及它的内容区域边衬大小和可见区域边衬大小。注意，窗口经过计算后得到的内容区域边衬大小和可见区域边衬大小并不一定是等于参数cf和vf所指定的大小的。
+
+    计算完成窗口win的大小之后，PhoneWindowManager类的成员函数 layoutWindowLw 还会检查窗口win是否是一个输入法窗口，并且它是否指定了额外的内容区域边衬和可见区域边衬。
+    如果这两个条件都成立的话，那么就需要相应地调整PhoneWindowManager类的成员变量 mContentBottom 和 mCurBottom 的值，以便使得PhoneWindowManager类的成员变量是 mContentLeft、mContentTop、mContentRight
+    和mContentBottom所围成的内容区域和成员变量mCurLeft、mCurTop、mCurRight和mCurBottom所围成的可见区域不会覆盖到输入法窗口额外指定的内容区域边衬和可见区域边衬。
+    
+    接下来，我们就继续分析 WindowState 类的成员函数 computeFrameLw 的实现，以便可以了解Activity窗口的大小计算的具体过程。
+    */
     /** {@inheritDoc} */
     @Override
     public void layoutWindowLw(WindowState win, WindowManager.LayoutParams attrs,
@@ -3356,7 +3427,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 + mDockBottom + " mContentBottom="
                 + mContentBottom + " mCurBottom=" + mCurBottom);
     }
-
+    /*wwxx Step 11
+    PhoneWindowManager类的成员函数 finishLayoutLw 是设计来结束一轮窗口大小的计算过程中，不过目前它什么也不做，只是一个空实现。
+    至此，我们就分析完成Activity窗口的大小计算过程了。从这个计算过程中，我们就可以知道一个Activity窗口除了有一个整体大小之外，还有一个内容区域边衬大小和一个可见区域边衬大小。
+    此外，我们还知道，一个Activity窗口的内容区域边衬大小和可见区域边衬大小是可能会受到与其所关联的输入法窗口的影响的，因为输入法窗口会叠加在该Activity窗口上面，这就涉及到了系统中的窗口的组织方式
+    */
     /** {@inheritDoc} */
     @Override
     public void finishLayoutLw() {
