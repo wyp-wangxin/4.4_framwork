@@ -360,10 +360,25 @@ public final class ActivityManagerService extends ActivityManagerNative
     final ArrayList<PendingActivityLaunch> mPendingActivityLaunches
             = new ArrayList<PendingActivityLaunch>();
 
+    /*wwxx
+    AMS 构造函数中初始化时将 mFgBroadcastQueue 赋予了 mBroadcastQueues[0]，将 mBgBroadcastQueue 赋予了 mBroadcastQueues[1]。
+    mFgBroadcastQueue 用来保存带有 FLAG_RECEIVER_FOREGROUND 标志的广播，它要求接收者进程以 foreground 的优先级运行，这样执行的更快。
+    如果不特别指定，一般的广播是没有这个标志的。
+
+
+    BroadcastQueue的主要成员变量如下:
+    public final class BroadcastQueue {
+        final ArrayList<BroadcastRecord> mParallelBroadcasts = new ArrayList<BroadcastRecord>();
+        final ArrayList<BroadcastRecord> mOrderedBroadcasts = new ArrayList<BroadcastRecord>();
+        final BroadcastRecord[] mBroadcastHistory = new BroadcastRecord[MAX_BROADCAST_HISTORY];
+    }
+
+    */
     BroadcastQueue mFgBroadcastQueue;
     BroadcastQueue mBgBroadcastQueue;
     // Convenient for easy iteration over the queues. Foreground is first
     // so that dispatch of foreground broadcasts gets precedence.
+    //发送广播时，AMS 中收到的广播消息首先保存在 mBroadcastQueues对象中，然后再发送给用户进程中的接收者。mBroadcastQueues 是一个只有两个元素的数组，定义如下:
     final BroadcastQueue[] mBroadcastQueues = new BroadcastQueue[2];
 
     BroadcastQueue broadcastQueueForIntent(Intent intent) {
@@ -679,6 +694,11 @@ public final class ActivityManagerService extends ActivityManagerNative
      * by the user ID the sticky is for, and can include UserHandle.USER_ALL
      * for stickies that are sent to all users.
      */
+    //系统中所有粘性广播都保存在AMS的成员变量mStickyBroadcasts中，定义如下:
+    /*wwxx
+        mStickyBroadcasts 是一个 SparseArray 类型的数组，使用用户Id作索引，保存的是ArrayMap对象，这个存储的是某个用户发送的所有粘性广播，每条记录以Intent 的 action字符串作索引，
+        保存的内容是一个 ArrayList 对象，其中存储了所有包含该 action的 Intent。
+    */
     final SparseArray<ArrayMap<String, ArrayList<Intent>>> mStickyBroadcasts =
             new SparseArray<ArrayMap<String, ArrayList<Intent>>>();
 
@@ -13147,7 +13167,16 @@ bindService()的代码见其定义处。
         }
         return didSomething;
     }
+/*wwxx
+动态注册是通过接口 registerReceiver()完成的。应用注册 receiver 时，并不是直接调用AMS的接口来完成的，而是通过Context类中的方法。
+因为 AMS 的接口需要提供应用的 ApplicationThread 类的 IBinder 对象来作为参数，应用中得到这个对象比较麻烦。下面是 AMS 的 registerReceiver( ) 方法的代码:
 
+registerReceiver()方法中如果没有处理stick广播，将是一个非常简单的方法，只需要检查receiver是否已经注册，就可以创建保存receiver的对象ReceiverList了。
+注册过的 recevier还可以重复注册，只要两次注册的pid、uid和 userld相同就可以，重复注册用于向某个receiver增加新的IntentFilter。
+
+粘性广播是在注册receiver 的时候发送的，如果调用registerReceiver()时参数 recevier为null,则立刻返回找到的第一个粘性广播的Intent。
+否则将查找系统中所有和 Intent匹配的粘性广播，并通过 BroadcastQueue来发送。
+*/
     public Intent registerReceiver(IApplicationThread caller, String callerPackage,
             IIntentReceiver receiver, IntentFilter filter, String permission, int userId) {
         enforceNotIsolatedCaller("registerReceiver");
@@ -13155,7 +13184,7 @@ bindService()的代码见其定义处。
         int callingPid;
         synchronized(this) {
             ProcessRecord callerApp = null;
-            if (caller != null) {
+            if (caller != null) {//检查调用进程是否是系统中正在运行的进程
                 callerApp = getRecordForAppLocked(caller);
                 if (callerApp == null) {
                     throw new SecurityException(
@@ -13169,24 +13198,28 @@ bindService()的代码见其定义处。
                     throw new SecurityException("Given caller package " + callerPackage
                             + " is not running in process " + callerApp);
                 }
-                callingUid = callerApp.info.uid;
+                callingUid = callerApp.info.uid; //从进程对象中得到uid和pid
                 callingPid = callerApp.pid;
             } else {
+                //没有传递调用者的信息，则从Binder中得到 uid 和 pid
                 callerPackage = null;
                 callingUid = Binder.getCallingUid();
                 callingPid = Binder.getCallingPid();
             }
-
+                //检查参数中传递的userId是否和调用进程所属的UserId一致
+                //通常只有 root 用户或 system 用户才能以其他用户的身份注册 receiver
             userId = this.handleIncomingUser(callingPid, callingUid, userId,
                     true, true, "registerReceiver", callerPackage);
 
             List allSticky = null;
 
             // Look for any matching sticky broadcasts...
+            // 查询系统中和参数 IntentFilter 匹配的粘性广播
             Iterator actions = filter.actionsIterator();
             if (actions != null) {
-                while (actions.hasNext()) {
+                while (actions.hasNext()) {// Intent中可能有多个Action
                     String action = (String)actions.next();
+                    // 获取系统中所有和 Intent 匹配的粘性广播
                     allSticky = getStickiesLocked(action, filter, allSticky,
                             UserHandle.USER_ALL);
                     allSticky = getStickiesLocked(action, filter, allSticky,
@@ -13207,17 +13240,20 @@ bindService()的代码见其定义处。
                     + ": " + sticky);
 
             if (receiver == null) {
-                return sticky;
+                return sticky;//如果receiver为 NULL，直接返回第一个stick的广播
             }
-
+            // 检查参数中的 receiver 是否已经注册过了，如果注册了，还可以增加新的IntentFilter
+            // 但是必须两者 pid、 uid 、 userId 都相同才能增加新的 filter
             ReceiverList rl
                 = (ReceiverList)mRegisteredReceivers.get(receiver.asBinder());
-            if (rl == null) {
+            if (rl == null) {//没有注册则创建新的对象
                 rl = new ReceiverList(this, callerApp, callingPid, callingUid,
                         userId, receiver);
                 if (rl.app != null) {
+                    //如果指定了进程对象，则把receiver保存在进程对象中
+                    //这样进程销毁时能释放receiver
                     rl.app.receivers.add(rl);
-                } else {
+                } else {//如果没有指定进程对象，则注册receiver的“死亡通知”
                     try {
                         receiver.asBinder().linkToDeath(rl, 0);
                     } catch (RemoteException e) {
@@ -13225,7 +13261,7 @@ bindService()的代码见其定义处。
                     }
                     rl.linkedToDeath = true;
                 }
-                mRegisteredReceivers.put(receiver.asBinder(), rl);
+                mRegisteredReceivers.put(receiver.asBinder(), rl);//保存新创建的对象
             } else if (rl.uid != callingUid) {
                 throw new IllegalArgumentException(
                         "Receiver requested to register for uid " + callingUid
@@ -13239,29 +13275,32 @@ bindService()的代码见其定义处。
                         "Receiver requested to register for user " + userId
                         + " was previously registered for user " + rl.userId);
             }
+            // 建立 BoradcaseFilter 并加入到 ReceiverList 对象中
             BroadcastFilter bf = new BroadcastFilter(filter, rl, callerPackage,
                     permission, callingUid, userId);
             rl.add(bf);
             if (!bf.debugCheck()) {
                 Slog.w(TAG, "==> For Dynamic broadast");
             }
+            //把 BoradcaseFilter 对象也加入到 mReceiverResolver 中
             mReceiverResolver.addFilter(bf);
 
             // Enqueue broadcasts for all existing stickies that match
             // this filter.
-            if (allSticky != null) {
+            if (allSticky != null) {//处理和Intent匹配的stick广播
                 ArrayList receivers = new ArrayList();
                 receivers.add(bf);
 
                 int N = allSticky.size();
                 for (int i=0; i<N; i++) {
                     Intent intent = (Intent)allSticky.get(i);
+                    //根据Intent中的标志得到发送队列 BroadcastQueue
                     BroadcastQueue queue = broadcastQueueForIntent(intent);
                     BroadcastRecord r = new BroadcastRecord(queue, intent, null,
                             null, -1, -1, null, null, AppOpsManager.OP_NONE, receivers, null, 0,
                             null, null, false, true, true, -1);
-                    queue.enqueueParallelBroadcastLocked(r);
-                    queue.scheduleBroadcastsLocked();
+                    queue.enqueueParallelBroadcastLocked(r);//向队列中加入广播记录
+                    queue.scheduleBroadcastsLocked();   //发送Intent到指定的进程
                 }
             }
 
@@ -13423,10 +13462,11 @@ bindService()的代码见其定义处。
         }
 
         userId = handleIncomingUser(callingPid, callingUid, userId,
-                true, false, "broadcast", callerPackage);
+                true, false, "broadcast", callerPackage);//检查用户
 
         // Make sure that the user who is receiving this broadcast is started.
         // If not, we will just skip it.
+        //检查发送广播的用户是否是活动的
         if (userId != UserHandle.USER_ALL && mStartedUsers.get(userId) == null) {
             if (callingUid != Process.SYSTEM_UID || (intent.getFlags()
                     & Intent.FLAG_RECEIVER_BOOT_UPGRADE) == 0) {
@@ -13440,21 +13480,23 @@ bindService()的代码见其定义处。
          * Prevent non-system code (defined here to be non-persistent
          * processes) from sending protected broadcasts.
          */
+        //防止非系统的应用广播一些受限的Intent
         int callingAppId = UserHandle.getAppId(callingUid);
         if (callingAppId == Process.SYSTEM_UID || callingAppId == Process.PHONE_UID
             || callingAppId == Process.SHELL_UID || callingAppId == Process.BLUETOOTH_UID ||
             callingUid == 0) {
             // Always okay.
+            //如果是root、system、phone、shell、bluetooth等的UId，则广播不受限制
         } else if (callerApp == null || !callerApp.persistent) {
             try {
                 if (AppGlobals.getPackageManager().isProtectedBroadcast(
-                        intent.getAction())) {
+                        intent.getAction())) {//不能发送受保护的广播
                     String msg = "Permission Denial: not allowed to send broadcast "
                             + intent.getAction() + " from pid="
                             + callingPid + ", uid=" + callingUid;
                     Slog.w(TAG, msg);
                     throw new SecurityException(msg);
-                } else if (AppWidgetManager.ACTION_APPWIDGET_CONFIGURE.equals(intent.getAction())) {
+                } else if (AppWidgetManager.ACTION_APPWIDGET_CONFIGURE.equals(intent.getAction())) {//特殊处理 ACTION_APPWIDGET_CONFIGURE
                     // Special case for compatibility: we don't want apps to send this,
                     // but historically it has not been protected and apps may be using it
                     // to poke their own app widget.  So, instead of making it protected,
@@ -13490,6 +13532,8 @@ bindService()的代码见其定义处。
         // Handle special intents: if this broadcast is from the package
         // manager about a package being removed, we need to remove all of
         // its activities from the history stack.
+        //处理从 PackageManagerService 中发出的应用删除或应用变化的Intent
+        //从stack中删除所有和应用关联的 Activity
         final boolean uidRemoved = Intent.ACTION_UID_REMOVED.equals(
                 intent.getAction());
         if (Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction())
@@ -13578,6 +13622,7 @@ bindService()的代码见其定义处。
          * of all currently running processes. This message will get queued up before the broadcast
          * happens.
          */
+        //处理几种特殊的Intent
         if (intent.ACTION_TIMEZONE_CHANGED.equals(intent.getAction())) {
             mHandler.sendEmptyMessage(UPDATE_TIME_ZONE);
         }
@@ -13590,9 +13635,14 @@ bindService()的代码见其定义处。
             ProxyProperties proxy = intent.getParcelableExtra("proxy");
             mHandler.sendMessage(mHandler.obtainMessage(UPDATE_HTTP_PROXY_MSG, proxy));
         }
+        /*wwxx
+        发送广播的第一阶段是检查发送的广播中是否是一些特殊的系统广播，特别是从PackageManagerService中发出的有关安装的应用发生变化的广播，如果检测到，
+        需要将这些包中的Activity 从 AMS的Activity栈中移除。
+        */
 
+        //2.处理粘性广播
         // Add to the sticky list if requested.
-        if (sticky) {
+        if (sticky) {//如果发送的粘性广播,加入到sticky列表
             if (checkPermission(android.Manifest.permission.BROADCAST_STICKY,
                     callingPid, callingUid)
                     != PackageManager.PERMISSION_GRANTED) {
@@ -13602,18 +13652,18 @@ bindService()的代码见其定义处。
                 Slog.w(TAG, msg);
                 throw new SecurityException(msg);
             }
-            if (requiredPermission != null) {
+            if (requiredPermission != null) {//发送粘性广播不能指定permisson
                 Slog.w(TAG, "Can't broadcast sticky intent " + intent
                         + " and enforce permission " + requiredPermission);
                 return ActivityManager.BROADCAST_STICKY_CANT_HAVE_PERMISSION;
             }
-            if (intent.getComponent() != null) {
+            if (intent.getComponent() != null) {//粘性广播的Intent必须指定组件
                 throw new SecurityException(
                         "Sticky broadcasts can't target a specific component");
             }
             // We use userId directly here, since the "all" target is maintained
             // as a separate set of sticky broadcasts.
-            if (userId != UserHandle.USER_ALL) {
+            if (userId != UserHandle.USER_ALL) {//如果一个 stick 的广播不是发给所有用户，先检查是否存在一个发给所有用户的stick广播
                 // But first, if this is not a broadcast to all users, then
                 // make sure it doesn't conflict with an existing broadcast to
                 // all users.
@@ -13634,48 +13684,53 @@ bindService()的代码见其定义处。
                     }
                 }
             }
-            ArrayMap<String, ArrayList<Intent>> stickies = mStickyBroadcasts.get(userId);
+            ArrayMap<String, ArrayList<Intent>> stickies = mStickyBroadcasts.get(userId);//保存stick广播到mstickyBroadcasts中
             if (stickies == null) {
                 stickies = new ArrayMap<String, ArrayList<Intent>>();
                 mStickyBroadcasts.put(userId, stickies);
             }
+            //把IntentFilter加入到stick广播的对象中
             ArrayList<Intent> list = stickies.get(intent.getAction());
             if (list == null) {
                 list = new ArrayList<Intent>();
-                stickies.put(intent.getAction(), list);
+                stickies.put(intent.getAction(), list);//加入Intent列表
             }
             int N = list.size();
             int i;
             for (i=0; i<N; i++) {
                 if (intent.filterEquals(list.get(i))) {
                     // This sticky already exists, replace it.
-                    list.set(i, new Intent(intent));
+                    list.set(i, new Intent(intent));//如果Intent已经存在,覆盖它
                     break;
                 }
             }
             if (i >= N) {
-                list.add(new Intent(intent));
+                list.add(new Intent(intent));// 加入Intent到 Inent列表中
             }
-        }
-
+        }/*wwxx
+        处理粘性广播的过程比较简单，基本上是按照前面介绍的粘性广播的数据结构来创建对象并保存调用参数。但是这里也做了一些检查，例如粘性广播不能带有permission，而且.Intent必须指定component，
+        这也意味着粘性广播不能群发。而且，如果一个粘性广播已经发给了所有用户，再单独发给某个用户会失败。
+        */
+        //3．创建BroadcastRecord对象并加入到发送队列
         int[] users;
-        if (userId == UserHandle.USER_ALL) {
+        if (userId == UserHandle.USER_ALL) {//广播给所有用户
             // Caller wants broadcast to go to all started users.
             users = mStartedUserArray;
         } else {
             // Caller wants broadcast to go to one specific user.
-            users = new int[] {userId};
+            users = new int[] {userId};//广播给某个用户
         }
 
         // Figure out who all will receive this broadcast.
+        //计算所有接收该 Intent 的 recever
         List receivers = null;
         List<BroadcastFilter> registeredReceivers = null;
         // Need to resolve the intent to interested receivers...
-        if ((intent.getFlags()&Intent.FLAG_RECEIVER_REGISTERED_ONLY)
+        if ((intent.getFlags()&Intent.FLAG_RECEIVER_REGISTERED_ONLY)// 如果 Intent 没有只发给动态接收者的标志，收集所有静态接收者
                  == 0) {
             receivers = collectReceiverComponents(intent, resolvedType, users);
         }
-        if (intent.getComponent() == null) {
+        if (intent.getComponent() == null) {//如果没有指定compoent，则查找所有匹配该Intent 的receiver
             registeredReceivers = mReceiverResolver.queryIntent(intent,
                     resolvedType, false, userId);
         }
@@ -13687,7 +13742,7 @@ bindService()的代码见其定义处。
                 + " replacePending=" + replacePending);
         
         int NR = registeredReceivers != null ? registeredReceivers.size() : 0;
-        if (!ordered && NR > 0) {
+        if (!ordered && NR > 0) {// 如果是普通广播,先发送动态注册的接收者
             // If we are not serializing this broadcast, then send the
             // registered receivers separately so they don't wait for the
             // components to be launched.
@@ -13700,8 +13755,8 @@ bindService()的代码见其定义处。
                     TAG, "Enqueueing parallel broadcast " + r);
             final boolean replaced = replacePending && queue.replaceParallelBroadcastLocked(r);
             if (!replaced) {
-                queue.enqueueParallelBroadcastLocked(r);
-                queue.scheduleBroadcastsLocked();
+                queue.enqueueParallelBroadcastLocked(r);//加入到并行队列中
+                queue.scheduleBroadcastsLocked();//发送广播
             }
             registeredReceivers = null;
             NR = 0;
@@ -13709,7 +13764,7 @@ bindService()的代码见其定义处。
 
         // Merge into one list.
         int ir = 0;
-        if (receivers != null) {
+        if (receivers != null) {//如果有静态的接收者，把静态和动态接收者合并成一个队列
             // A special case for PACKAGE_ADDED: do not allow the package
             // being added to see this broadcast.  This prevents them from
             // using this as a back door to get run as soon as they are
@@ -13752,11 +13807,13 @@ bindService()的代码见其定义处。
             BroadcastFilter curr = null;
             while (it < NT && ir < NR) {
                 if (curt == null) {
-                    curt = (ResolveInfo)receivers.get(it);
+                    curt = (ResolveInfo)receivers.get(it);//得到静态接收者
                 }
                 if (curr == null) {
-                    curr = registeredReceivers.get(ir);
+                    curr = registeredReceivers.get(ir);//得到动态接收者
                 }
+                //根据优先级把动态接收者插入到静态接收者的队列
+                //这里注意，同优先级下，动态接收者会被插入到静态接收者的后面
                 if (curr.getPriority() >= curt.priority) {
                     // Insert this broadcast record into the final list.
                     receivers.add(it, curr);
@@ -13771,7 +13828,7 @@ bindService()的代码见其定义处。
                 }
             }
         }
-        while (ir < NR) {
+        while (ir < NR) {//在队列中加入剩下的动态接收者
             if (receivers == null) {
                 receivers = new ArrayList();
             }
@@ -13782,6 +13839,7 @@ bindService()的代码见其定义处。
         if ((receivers != null && receivers.size() > 0)
                 || resultTo != null) {
             BroadcastQueue queue = broadcastQueueForIntent(intent);
+            //创建对象 BroadcastRecord
             BroadcastRecord r = new BroadcastRecord(queue, intent, callerApp,
                     callerPackage, callingPid, callingUid, resolvedType,
                     requiredPermission, appOp, receivers, resultTo, resultCode,
@@ -13795,11 +13853,18 @@ bindService()的代码见其定义处。
             }
             boolean replaced = replacePending && queue.replaceOrderedBroadcastLocked(r); 
             if (!replaced) {
-                queue.enqueueOrderedBroadcastLocked(r);
-                queue.scheduleBroadcastsLocked();
+                queue.enqueueOrderedBroadcastLocked(r);//把广播加入到 order队列
+                queue.scheduleBroadcastsLocked(); //发送广播
             }
         }
+        /*wwxx
+        这段代码的主要工作是收集所有广播接收者。如果是普通广播，会优先发送给动态接收者。
+        如果是有序广播，则会将静态接收者和动态接收者一起根据优先级排序，然后再创建BroadcastRecord并加入到有序广播队列中。
+        从代码的实现上看，无论哪种广播，静态接收者之间一定会排序，而且相同优先级下，静态接收者会排在动态接收者之前。
+        为什么要把静态接收者放到“ordered”队列呢?对于静态接收者，它所属的进程可能已经在运行，也可能没有。
+        如果进程没有运行，就需要先启动它，但是这是一个耗时的过程，而且启动有可能失败，这个过程只能逐一处理,不能简单地群发消息。因此，把静态接收者放到“ordered”队列就很合适了。
 
+        */
         return ActivityManager.BROADCAST_SUCCESS;
     }
 
@@ -13831,7 +13896,16 @@ bindService()的代码见其定义处。
 
         return intent;
     }
+    /*wwxx
+        应用发送广播调用的是 Context 类中的方法，发送广播的方法虽然很多，最后都是调用 ActivityManagerService 的 broadcastIntent()方法。broadcastIntent()方法简单检查了调用者的权限后，
+        转调内部方法broadcastIntentLocked()来完成发送。
 
+        broadcastIntentLocked() 方法先检查广播的 Intent， 如果是一些系统 Intent ，则调用相应方法处理。
+        接下来如果发送的是粘性广播，把广播的 Intent 加入到 AMS 的粘性广播列表中。
+        最后查找所有接收者，逐个调用它们。下面看看具体的实现。 见函数 private final int broadcastIntentLocked 实现处。
+
+
+    */
     public final int broadcastIntent(IApplicationThread caller,
             Intent intent, String resolvedType, IIntentReceiver resultTo,
             int resultCode, String resultData, Bundle map,

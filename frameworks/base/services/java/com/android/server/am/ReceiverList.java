@@ -35,13 +35,13 @@ import java.util.ArrayList;
 final class ReceiverList extends ArrayList<BroadcastFilter>
         implements IBinder.DeathRecipient {
     final ActivityManagerService owner;
-    public final IIntentReceiver receiver;
-    public final ProcessRecord app;
-    public final int pid;
-    public final int uid;
-    public final int userId;
+    public final IIntentReceiver receiver;//用户进程中定义的IntentReceiver
+    public final ProcessRecord app; //所属用户进程的 ProcessRecord 对象
+    public final int pid;           //所属用户进程的pid
+    public final int uid;           //所属用户进程的uid
+    public final int userId;        //用户Id
     BroadcastRecord curBroadcast = null;
-    boolean linkedToDeath = false;
+    boolean linkedToDeath = false;   //是否注册了“死亡通知”  ReceiverList 继承了 IBinder.DeathRecipient,如果注册了receiver的应用发生崩溃，AMS 中的ReceiverList对象就能收到通知，去除这个进程的receiver。
 
     String stringName;
     

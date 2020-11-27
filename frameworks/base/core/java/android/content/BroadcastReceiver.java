@@ -206,6 +206,99 @@ import android.util.Slog;
  * a {@link android.app.Service} in conjunction with a BroadcastReceiver to keep
  * the containing process active for the entire time of your operation.
  */
+
+/*wwxx
+BroadcastReceiver 是一种很简单的组件，甚至在 ActivityThread 中都没有管理它的数据结构。因为 BroadcastReceiver 的本质就是通过Intent 来执行应用中的一个方法，
+在应用中并不需要一个长期存在的对象。虽然在应用中不需要专门的数据结构来管理 BroadcastReceiver ，但是，在 ActivityManagerService 中还是需要的，
+因为Broadcast Receiver 可以在程序运行时动态向AMS注册，AMS 中需要有数据结构来管理动态接收者。
+
+BroadcastReceiver可以分成两类。
+
+静态接收者:静态接收者是指在AndroidManifest中通过标签<receiver>指定的接收者。
+动态接收者:动态接收者是指通过AMS 的 registerReceiver()接口注册的接收者。动态注册的好处是使用更加灵活。如果不需要接收广播了，可以通过unregisterReceiver()接口取消注册。
+
+
+可以去看一个 AndroidManifest.xml 文件中定义静态接收者的例子:
+
+标签<receiver>的属性 android:name 的值是应用中定义的 BroadcastReceiver 的派生类的名称。
+同时还必须定义<intent-filter>标签，用来指定接收的Intent的种类。标签<intent-filter>中可以通过属性android:priority来指定接收的优先级。
+
+BroadcastReceiver最重要的成员如下:
+
+public abstract class BroadcastReceiver {
+    private PendingResult mPendingResult;
+    public abstract void onReceive(Context context, Intent intent);
+}
+
+实现一个广播接收器只需要从 BroadcastReceiver 中派生一个类，然后重载它的抽象方法 onReceive() 就可以了。这是最简单的广播用法。
+
+BroadcastReceiver还有一个mPendingResult变量，有什么作用呢?
+
+考虑这样一种情况，如果接收到广播后需要很长的时间来处理，而且还需要返回处理结果，该怎么办? BroadcastReceiver 对象的 onReceive() 方法如果长时间不返回，会引发ANR，
+因此如果要执行耗时的操作，必须在其他线程中完成。但是在其他线程中完成处理后，如何把处理的结果传递回 ActivityManagerService 呢?这就需要用到 mPendingResult 变量了。
+这时，在继承类的 onReceive() 方法中需要先调用 goAsync() 方法来得到 mPendingResult 对象:，见本文件goAsync()方法处。
+
+
+
+
+
+
+
+
+广播的种类
+
+从广播的发送方式来划分，有3类广播。
+
+·普通广播:通过Context中的方法 sendBroadcast 和 sendBroadcastAsUser 发送的广播属于普通广播。普通广播的特点是发送给系统当前的所有注册的接收者，广播接收者接收广播的顺序也是不确定的。
+
+·有序广播:和普通广播不同的是，有序广播的发送顺序是按照接收者的优先级来决定的,系统默认设置范围是-1000~1000，但实际上没有明确的数值限定，优先级最高可以是2147483647,也就是32位有符号整数的最大值，
+    如果优先级相同，则先注册的接收者会先收到广播，而且动态注册的接收者比静态注册的接收者优先收到广播。有序广播的另一个特点是接收者可以打断广播的发送，如果接收者不希望广播继续传递，可以通过返回值来中止传递。
+    同时接收者还可以篡改广播的内容，正因为如此，设置广播的高优先级就有意义了。例如几个应用同时注册了短信的接收广播。优先级高的收到后可以不让广播继续，这样其他的应用就接收不到了。
+    有序广播通过 Context 的 sendOrderedBroadcast() 方法和 sendOrderedBroadcastAsUser() 方法发送。
+
+粘性广播:粘性广播是很有用的一种广播方式，和前面两种广播不同的是，粘性广播能发给系统中以后注册的接收者，甚至是新安装的应用中的接收者，而前面两种广播都只能发给系统已经注册的接收者。
+    粘性广播有两种，一种是普通粘性广播，通过 sendStickyBroadcast() 方法发送，另一种是有序粘性广播，通过 sendStickyOrderedBroadcast(）方法发送。
+
+
+
+广播的数据结构
+在 AactivityManagerService 中，所有注册的接收者放在成员变量 mRegisteredReceivers 中，定义如下:
+
+final HashMap<IBinder,ReceiverList> mRegisteredReceivers;
+
+mRegisteredReceivers 是一个 HashMap 类型的变量，使用接收者的 IBinder 作为 key 来存储接
+
+收者的对象 ReceiverList 。因为一个接收者中可能包含有多个 IntentFilter ，所以接收者对象是一个数组，定义如下:
+
+final class ReceiverList extends ArrayList<BroadcastFilter> ，可以去 ReceiverList.java 文件看看。
+
+上面定义中的 BroadcastFilter是从 IntentFilter 类派生，定义如下: 
+
+final class BroadcastFilter extends IntentFilter {
+    // Back-pointer to the list this filter is in.
+    final ReceiverList receiverList;   //所属recevier的引用
+    final String packageName;          //所在应用的包名
+    final String requiredPermission;   //权限字符串 
+    final int owningUid;               //所在应用的uid
+    final int owningUserId;            //所在应用的UserId
+    ...
+}
+
+
+
+发送广播时，AMS 中收到的广播消息首先保存在 mBroadcastQueues 对象中，然后再发送给用户进程中的接收者。 mBroadcastQueues 是一个只有两个元素的数组，定义如下:去AMS看看
+final BroadcastQueue[] mBroadcastQueues = new BroadcastQueue [2];
+
+
+广播的注册过程 
+直接看AMS public Intent registerReceiver 函数处吧。
+
+
+广播的发送过程
+直接看AMS public final int broadcastIntent 函数处理。
+
+*/
+
 public abstract class BroadcastReceiver {
     private PendingResult mPendingResult;
     private boolean mDebugUnregister;
@@ -362,6 +455,9 @@ public abstract class BroadcastReceiver {
          * Finish the broadcast.  The current result will be sent and the
          * next broadcast will proceed.
          */
+        /*wwxx
+        finish() 方法中有几处判断条件,但是各条分支最终都会执行 sendFinished() 方法。在 sendFinished() 方法中通过调用 finishReceiver() 方法将结果传递给了 ActivityManagerServcie，代码如下:见本文函数定义处
+        */
         public final void finish() {
             if (mType == TYPE_COMPONENT) {
                 final IActivityManager mgr = ActivityManagerNative.getDefault();
@@ -501,6 +597,12 @@ public abstract class BroadcastReceiver {
      * APIs.  The {@link PendingResult#finish PendingResult.finish()} method
      * must be called once processing of the broadcast is done.
      */
+    /*wwxx
+    goAsync() 方法将 mPendingResult 引用的 PendingResult 对象通过返回值传递出来，同时将 mPendingResult 的值设置为 null，这样当 onReceive() 返回后，
+    ActivityManagerService 如果需要广播的返回结果将会等待。在 onReceive() 结束前，需要将 PendingResult 对象传递到新的线程中 ，在新线程处理完成后，
+    必须调用 PendingResult 对象的 finish() 方法将结果传递到 AMS ，AMS 得到结果后，才会继续传递消息到下一个接收者。我们看看finish()方法的代码:
+
+    */
     public final PendingResult goAsync() {
         PendingResult res = mPendingResult;
         mPendingResult = null;

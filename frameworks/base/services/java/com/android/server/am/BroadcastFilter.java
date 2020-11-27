@@ -21,7 +21,11 @@ import android.util.PrintWriterPrinter;
 import android.util.Printer;
 
 import java.io.PrintWriter;
+/*wwxx
+BroadcastFilter 的成员变量 requiredPermission 保存的是向 receiver 发送广播时需要申明的权限，
+owningUserIld 是 receiver 注册时的用户Id,android 4.2 以后开始支持多用户，不同用户注册的receiver不能混用。
 
+*/
 final class BroadcastFilter extends IntentFilter {
     // Back-pointer to the list this filter is in.
     final ReceiverList receiverList;

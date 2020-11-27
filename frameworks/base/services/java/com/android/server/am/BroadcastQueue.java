@@ -84,6 +84,7 @@ public final class BroadcastQueue {
      * a bunch of processes to execute IntentReceiver components.  Background-
      * and foreground-priority broadcasts are queued separately.
      */
+    //wwxx  mParallelBroadcasts 用来保存所有普通广播，
     final ArrayList<BroadcastRecord> mParallelBroadcasts = new ArrayList<BroadcastRecord>();
 
     /**
@@ -93,11 +94,13 @@ public final class BroadcastQueue {
      * broadcasts, separate background- and foreground-priority queues are
      * maintained.
      */
+    //wwxx mOrderedBroadcasts用来保存所有有序广播，
     final ArrayList<BroadcastRecord> mOrderedBroadcasts = new ArrayList<BroadcastRecord>();
 
     /**
      * Historical data of past broadcasts, for debugging.
      */
+    //wwxx mBroadcastHistory用来保存所有发送过的广播，主要用于调试。
     final BroadcastRecord[] mBroadcastHistory = new BroadcastRecord[MAX_BROADCAST_HISTORY];
 
     /**
