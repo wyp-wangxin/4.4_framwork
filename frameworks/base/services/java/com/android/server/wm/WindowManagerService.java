@@ -1217,7 +1217,13 @@ InputManagerService类型的变量，输入系统的管理者。InputManagerServ
             }
         }
     }
+    /*wwxx
+     从前面的分析可以知道，将一个WindowState对象增加到WindowManagerService服务内部中的窗口堆栈，即WindowManagerService类的成员变量mWindows，
+     是通过调用WindowManagerService类的成员函数addWindowToListInOrderLocked来实现的。
+     A. token 。 本地变量token指向的是参数win所描述的一个WindowState对象的成员变量 mToken 所指向一个WindowToken对象，这个WindowToken对象用来描述WindowState对象win所对应的窗口令牌。
+     B. localmWindows 。本地变量localmWindows指向的是WindowManagerService类的成员变量mWindows所描述的一个ArrayList，即一个窗口堆栈，WindowManagerService类的成员函数addWindowToListInOrderLocked的目标就是要将参数win所描述的一个WindowState对象增加到该窗口堆栈的合适位置上去。
 
+    */
     private void addWindowToListInOrderLocked(final WindowState win, boolean addToToken) {
         if (DEBUG_FOCUS_LIGHT) Slog.d(TAG, "addWindowToListInOrderLocked: win=" + win +
                 " Callers=" + Debug.getCallers(4));
@@ -1228,13 +1234,13 @@ InputManagerService类型的变量，输入系统的管理者。InputManagerServ
         反之使用 addFreeWindowToListLocked 方法将非Activity窗口插入窗口堆栈。
 
    */
-        if (win.mAttachedWindow == null) {
+        if (win.mAttachedWindow == null) {//CASE 1：要增加的窗口win没有附加在其它窗口上
             final WindowToken token = win.mToken;
              //tokenWindowsPos表示该WindowState对象在所属同一WindowToken的所有WindowState中的位置
             int tokenWindowsPos = 0;
-            if (token.appWindowToken != null) {
+            if (token.appWindowToken != null) {//CASE 1.1：要增加的窗口win是一个Activity窗口
                 tokenWindowsPos = addAppWindowToListLocked(win);
-            } else {
+            } else {//CASE 1.2：要增加的窗口win不是一个Activity窗口
                 addFreeWindowToListLocked(win);
             }
             if (addToToken) {
@@ -1243,7 +1249,7 @@ InputManagerService类型的变量，输入系统的管理者。InputManagerServ
           　 // 比如一个activity弹出了一个AlertDialog窗口，这两个窗口的AppWindowToken是一个
                 token.windows.add(tokenWindowsPos, win);
             }
-        } else {
+        } else {//CASE 2：要增加的窗口win附加在窗口 mAttachedWindow 上
             addAttachedWindowToListLocked(win, addToToken);
         }
 
@@ -1459,7 +1465,18 @@ InputManagerService类型的变量，输入系统的管理者。InputManagerServ
                     + " anim layer: " + imw.mWinAnimator.mAnimLayer);
         }
     }
+    /*wwxx wms study part2 10、
+    删除WindowState是通过调用WindowManagerService类的成员函数tmpRemoveWindowLocked来实现的，如下所示
 
+    WindowManagerService类的成员函数 tmpRemoveWindowLocked 将参数win所描述的窗口及其子窗口从WindowManagerService服务内部的窗口堆栈中删除，
+
+    即从 WindowManagerService类的成员变量 mWindows 所描述的一个ArrayList中删除。 mWindows 在4.4 里面我猜变成了WindowList 这个类。
+
+    如果每一个被删除的窗口在窗口堆栈中的位置比参数 interestingPos 的值小，那么WindowManagerService类的成员函数 tmpRemoveWindowLocked 还会将参数interestingPos的值减少1，
+    这相当于是计算当删除参数win所描述的窗口及其子窗口之后，原来位于窗口堆栈中第interestingPos个位置的窗口现在位于窗口堆栈的位置，
+    这个位置最终会作为WindowManagerService类的成员函数 tmpRemoveWindowLocked 的返回值。
+
+    */
     private int tmpRemoveWindowLocked(int interestingPos, WindowState win) {
         WindowList windows = win.getWindowList();
         int wpos = windows.indexOf(win);
@@ -2205,7 +2222,37 @@ wwxx
 
 */
 
+    /*wwxx wms study part2 6、
+    如果参数 attrs 所描述的一个WindowManager.LayoutParams对象的成员变量token所指向的一个IBinder接口在WindowManagerService类的成员变量mTokenMap所描述的一个HashMap中没有一个对应的WindowToken对象，
+    并且该WindowManager.LayoutParams对象的成员变量type的值不等于TYPE_INPUT_METHOD、TYPE_WALLPAPER，以及不在FIRST_APPLICATION_WINDOW和LAST_APPLICATION_WINDOW，
+    那么就意味着这时候要增加的窗口就既不是输入法窗口，也不是壁纸窗口和Activity窗口，因此，就需要以参数attrs所描述的一个WindowManager.LayoutParams对象的成员变量token所指向的一个IBinder接口为参数来
+    创建一个WindowToken对象，并且将该WindowToken对象保存在WindowManagerService类的成员变量mTokenMap中
 
+
+    从前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文可以知道，增加一个窗口WindowManagerService服务最终是通过调用WindowManagerService类的成员函数addWindow来实现的，
+    如下所示：
+    WindowManagerService类有两个成员变量 mWindowMap 和 mWindows 是用来保存系统中的WindowState对象。其中，成员变量mWindowMap指向的是一个HashMap，它的关键字是一个IBinder接口，
+
+
+    A. 如果要增加的是输入法窗口，即参数 attrs 所描述的一个WindowManager.LayoutParams对象的成员变量type的值等于 TYPE_INPUT_METHOD ，
+       那么就会调用成员函数 addInputMethodWindowToListLocked 来将WindowState对象win增加到WindowManagerService类的成员变量mWindows中去，
+       并且会将WindowState对象win保存在WindowManagerService类的成员变量 mInputMethodWindow 中。
+
+    B. 如果要增加的是输入法对话框，即参数 attrs 所描述的一个WindowManager.LayoutParams对象的成员变量type的值等于 TYPE_INPUT_METHOD_DIALOG ，
+       那么就会调用成员函数 addWindowToListInOrderLocked 来将WindowState对象win增加到WindowManagerService类的成员变量mWindows中去，
+       并且会将WindowState对象win保存在WindowManagerService类的成员变量 mInputMethodDialogs 中，
+       以及调用成员函数 adjustInputMethodDialogsLocked 来调整刚才所添加的输入法窗口在窗口堆栈中的位置，使得它位于系统当前需要输入法窗口的窗口的上面。
+    C. 如果要增加的是壁纸窗口，即参数attrs所描述的一个WindowManager.LayoutParams对象的成员变量type的值等于 TYPE_WALLPAPER ，
+       那么就会调用成员函数 addWindowToListInOrderLocked 来将WindowState对象win增加到WindowManagerService类的成员变量mWindows中去，
+       并且会调用成员函数adjustWallpaperWindowsLocked来调整刚才所添加的壁纸窗口在窗口堆栈中的位置，使得它位于系统当前需要壁纸窗口的窗口的下面。
+
+    D .如果要增加的既不是输入法窗口，也不是输入法对话框和壁纸窗口，那么就只会调用成员函数 addWindowToListInOrderLocked 来将WindowState对象win增加到WindowManagerService类的成员变量mWindows中去，
+       但是如果要增加的窗口需要显示壁纸，即参数 attrs 所描述的一个WindowManager.LayoutParams对象的成员变量flags的 FLAG_SHOW_WALLPAPER 位等于1，
+       那么还会继续调用成员函数 adjustWallpaperWindowsLocked 来调整系统中的壁纸窗口在窗口堆栈中的位置，使得它位于刚才所添加的窗口的下面。
+
+
+
+    */
     public int addWindow(Session session, IWindow client, int seq,
             WindowManager.LayoutParams attrs, int viewVisibility, int displayId,
             Rect outContentInsets, InputChannel outInputChannel) {
@@ -2895,7 +2942,7 @@ wwxx
         flags的WindowManager.LayoutParams.FLAG_SCALED位不等于0的时候，就说明需要给Activity窗口的大小设置缩放因子。
         缩放因子分为两个维度，分别是宽度缩放因子和高度缩放因子，保存在WindowState对象win的成员变量 HScale 和 VScale 中，
         计算方法分别是用应用程序进程请求设置Activity窗口中的宽度和高度除以Activity窗口在布局参数中所设置的宽度和高度。
-        
+
     3.参数 flags 用来描述Activity窗口是否有额外的内容区域边衬和可见区域边衬未设置，它被记录在WindowState对象win的成员变量 mGivenInsetsPending 中。
 
     4.调用WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 来计算Activity窗口的大小。计算完成之后，
@@ -3487,6 +3534,24 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
 
 接下来，看一下各种显示组件是如何声明WindowToken的。
  */   
+    /*wwxx
+    对于输入法窗口和壁纸窗口来说，参数token指向的是与它们所关联的一个Binder对象的IBinder接口，而参数type描述的是要在WindowManagerService服务内部增加WindowToken对象的窗口的类型。
+
+    WindowManagerService类的成员函数 addWindowToken 首先检查在成员变量 mTokenMap 所描述的一个HashMap检查是否已经存在一个WindowToken对象与参数token对应。
+    如果已经存在的话，那么WindowManagerService类的成员函数 addWindowToken 就什么也不做就返回了，否则的话，就会使用参数token来创建一个WindowToken对象，
+    并且会将该WindowToken对象保存在WindowManagerService类的成员变量mTokenMap中。
+
+    这里有两个地方需要注意：
+
+        A. 由于这里增加的是WindowToken对象，而不是 AppWindowToken 对象，因此，与增加 AppWindowToken 不同，这里不需要将新创建的WindowToken对象保存在WindowManagerService类的成员变量 mAppTokens 中。
+
+        B. 如果参数 type 的值等于 TYPE_WALLPAPER ，那么就意味着新创建的 WindowToken 对象是用来描述壁纸窗口的，这时候还需要将新创建的WindowToken对象保存在
+            WindowManagerService类的成员变量mWallpaperTokens所描述的一个ArrayList中，以方便管理壁纸窗口。
+
+        对于非输入法窗口、非壁纸窗口以及非Activity窗口来说，它们所对应的WindowToken对象是在它们增加到WindowManagerService服务的时候创建的。
+        从前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文可以知道，增加一个窗口WindowManagerService服务最终是通过调用
+        WindowManagerService类的成员函数 addWindow 来实现的，接下来我们就主要分析与创建 WindowToken 相关的逻辑，如下所示：去看看 addWindow 函数吧
+    */
     @Override
     public void addWindowToken(IBinder token, int type) {
         //wwxx 需要声明Token的调用者拥有MANAGE_APP_TOKENS的权限
@@ -3511,7 +3576,25 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
             }
         }
     }
+    /*wwxx wms study part2 7、
 
+    调用WindowManagerService类的成员函数 removeWindowToken 需要具有android.Manifest.permission.MANAGE_APP_TOKENS权限。
+
+    WindowManagerService类的成员函数removeWindowToken首先找到与参数 token 所描述的Binder接口所对应的 WindowToken 对象，接着再将该WindowToken对象从WindowManagerService类的成员变量 mTokenMap 中删除。
+
+    删除了一个WindowToken对象之后，如果该WindowToken对象不是处于不可见的状态，即它的成员变量 hidden 的值不等于false，那么就意味着它所描述窗口口也有可能是可见的，那么WindowManagerService类的成员函数removeWindowToken就需要作以下两个检查：
+
+    A. 如果该WindowToken对象所描述的窗口的其中一个处于动画显示过程，即用来描述该窗口的一个WindowState对象的成员函数 isAnimating 的返回值等于true，
+       那么就需要该WindowToken对象的状态设置为正在退出状态，即将它保存在WindowManagerService类的成员变量 mExitingTokens 所描述的一个ArrayList中。
+
+    B. 如果该WindowToken对象所描述的窗口是可见的，即用来描述该窗口的一个WindowState对象的成员函数 isVisibleNow 的返回值等于true，
+       那么就需要调用WindowManagerService类的成员函数 applyAnimationLocked 来给它应用一个退出动画，该退出动画是通过调用WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 来实现的。
+       当一个窗口退出了之后，系统当前获得焦点的窗口可能会发生变化，这时候就需要调用WindowManagerService类的成员函数 updateFocusedWindowLocked 来重新调整系统当前获得焦点的窗口。
+
+    注意，如果正在删除的WindowToken对象是用来描述壁纸窗口的，那么还需要将该WindowToken对象从WindowManagerService类的成员变量 mWallpaperTokens 所描述的一个ArrayList中删除。
+
+
+    */
     @Override
     public void removeWindowToken(IBinder token) {
         if (!checkCallingPermission(android.Manifest.permission.MANAGE_APP_TOKENS,
@@ -3584,7 +3667,114 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
         stack.addTask(task, true);
         return task;
     }
+    /*wwxx wms study part2 1、
 
+    从前面Android应用程序启动过程源代码分析一文可以知道，应用程序进程中的每一个Activity组件在Activity管理服务ActivityManagerService中都对应有一个ActivityRecord对象。
+    从前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文又可以知道，Activity管理服务ActivityManagerService中每一个ActivityRecord对象
+    在Window管理服务WindowManagerService中都对应有一个AppWindowToken对象。
+
+    此外，在输入法管理服务InputMethodManagerService中，每一个输入法窗口都对应有一个Binder对象，这个Binder对象在Window管理服务WindowManagerService又对应有一个 WindowToken对象。
+
+    与输入法窗口类似，在壁纸管理服务WallpaperManagerService中，每一个壁纸窗口都对应有一个Binder对象，这个Binder对象在Window管理服务WindowManagerService也对应有一个WindowToken对象。
+    
+    在Window管理服务WindowManagerService中，无论是 AppWindowToken 对象，还是 WindowToken 对象，它们都是用来描述一组有着相同令牌的窗口的，每一个窗口都是通过一个WindowState对象来描述的。
+    例如，一个Activity组件窗口可能有一个启动窗口（Starting Window），还有若干个子窗口，那么这些窗口就会组成一组，并且都是以Activity组件在Window管理服务WindowManagerService中所对应的
+    AppWindowToken 对象为令牌的。从抽象的角度来看，就是在Window管理服务WindowManagerService中，每一个令牌（AppWindowToken或者WindowToken）都是用来描述一组窗口（WindowState）的，
+    并且每一个窗口的子窗口也是与它同属于一个组，即都有着相同的令牌。
+
+    其中，Activity Stack是在ActivityManagerService服务中创建的，Token List和Window Stack是在WindowManagerService中创建的，而Binder for IM和Binder for WP
+    分别是在InputMethodManagerService服务和WallpaperManagerService服务中创建的，用来描述一个输入法窗口和一个壁纸窗口。
+
+        图1中的对象的对应关系如下所示：https://blog.csdn.net/luoshengyang/article/details/8498908
+
+       1. ActivityRecord-J对应于AppWindowToken-J，后者描述的一组窗口是{WindowState-A, WindowState-B, WindowState-B-1}，其中， WindowState-B-1是WindowState-B的子窗口。
+
+       2. ActivityRecord-K对应于AppWindowToken-K，后者描述的一组窗口是{WindowState-C, WindowState-C-1, WindowState-D, WindowState-D-1}，其中， 
+          WindowState-C-1是WindowState-C的子窗口，WindowState-D-1是WindowState-D的子窗口。
+
+       3. ActivityRecord-N对应于AppWindowToken-N，后者描述的一组窗口是{WindowState-E}，其中， WindowState-E是系统当前激活的Activity窗口。
+
+       4. Binder for IM对应于WindowToken-I，后者描述的一组窗口是{WindowState-I}，其中， WindowState-I是WindowState-E的输入法窗口。
+
+       5. Binder for WP对应于WindowToken-W，后者描述的一组窗口是{WindowState-W}，其中， WindowState-W是WindowState-E的壁纸窗口。
+
+       从图1还可以知道，Window Stack中的WindowState是按照它们所描述的窗口的Z轴位置从低到高排列的。
+
+       以上就是WindowManagerService服务组织系统中的窗口的抽象模型，接下来我们将分析AppWindowToken、WindowToken和WindowState的一些增加、移动和删除等操作，以便可以对这个抽象模型有一个更深刻的认识。
+        
+
+    增加AppWindowToken
+
+       从前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文可以知道，一个Activity组件在启动的过程中，
+       ActivityManagerService服务会调用调用WindowManagerService类的成员函数 addAppToken 来为它增加一个 AppWindowToken，如下所示：
+       
+       WindowManagerService 类有三个成员变量 mTokenMap 、 mTokenList（4.4的 mWallpaperTokens ） 和 mAppTokens （4.4的 mFinishedStarting 、 mOpeningApps 、mClosingApps ，我也不知道是哪一个） ，
+       它们都是用来描述系统中的窗口的。
+
+       成员变量 mTokenMap 指向的是一个HashMap，它里面保存的是一系列的WindowToken对象，每一个WindowToken对象都是用来描述一个窗口的，并且是以描述这些窗口的一个Binder对象的IBinder接口为键值的。
+       例如，对于Activity组件类型的窗口来说，它们分别是以用来描述它们的一个ActivityRecord对象的IBinder接口保存在成员变量mTokenMap所指向的一个HashMap中的。
+        
+       成员变量 mTokenList 指向的是一个ArrayList，它里面保存的也是一系列WindowToken对象，这些WindowToken对象与保存在成员变量mTokenMap所指向的一个HashMap中的WindowToken对象是一样的。
+       成员变量 mTokenMap 和成员变量 mTokenList 的区别就在于，前者在给定一个IBinder接口的情况下，可以迅速指出是否存在一个对应的WindowToken对象，
+       而后者可以迅速遍历WindowManagerService服务中的 WindowToken 对象。
+
+       成员变量 mAppTokens 指向的也是一个ArrayList，不过它里面保存的是一系列AppWindowToken对象，每一个AppWindowToken对象都是用来描述一个Activity组件窗口的，
+       而这些AppWindowToken对象是以它们描述的窗口的Z轴坐标由小到大保存在这个ArrayList中的，这样我们就可以通过这个ArrayList来从上到下或者从下到上地遍历系统中的所有Activity组件窗口。
+       由于这些AppWindowToken对象所描述的Activity组件窗口也是一个窗口，并且AppWindowToken类是从WindowToken继承下来的，因此，这些AppWindowToken对象还会同时被保存在成员变量
+       mTokenMap 所指向的一个HashMap和成员变量 mTokenList 所指向的一个ArrayList中。
+
+       理解了WindowManagerService 类的这三个成员变量的含义之后，它的成员函数 addAppToken 的实现就好理解了，其中，参数 token 指向的便是用来描述正在启动的Activity组件所对应的一个ActivityRecord对象，
+       而参数 addPos 用来描述该Activity组件在堆栈中的位置，这个位置同时也是接下来要创建的AppWindowToken对象在WindowManagerService类的 mTokenList 所描述的一个ArrayList中的位置。
+        
+       WindowManagerService类的成员函数 addAppToken 首先调用另外一个成员函数 findAppWindowToken 来在成员变量 mTokenMap 所描述的一个HashMap检查是否已经存在一个AppWindowToken 。
+       如果已经存在的话，那么WindowManagerService类的成员函数addAppToken就什么也不做就返回了，否则的话，就会使用参数token来创建一个AppWindowToken对象，
+       并且会将该AppWindowToken对象分别保存在WindowManagerService类的成员变量 mTokenMap 、 mTokenList 和 mAppTokens 中。4.4里面已经没有 mTokenList 和 mAppTokens  ，暂且关注mTokenMap。
+
+    2、接下来去分析一下 删除 AppWindowToken 吧，删除AppWindowToken是通过调用WindowManagerService类的成员函数 removeAppTokens 来实现的 在 WindowManagerService.java 中，去看看吧
+    
+    3、移动 AppWindowToken 至指定位置
+
+    4. 移动AppWindowToken至顶端
+
+    5. 移动AppWindowToken至底端
+
+    6. 增加WindowToken  addWindow
+          如果一个WindowState对象不是与一个AppWindowToken对象对应的，那么它就必须要与一个WindowToken对象对应。
+          例如，用来描述输入法窗口和壁纸窗口的WindowState对象对应的就是WindowToken对象，而不是AppWindowToken对象，因为它们不是Activity类型的窗口。
+
+          输入法窗口和壁纸窗口分别是由输入法管理服务InputMethodManagerService和壁纸管理服务WallpaperManagerService调用WindowManagerService类的成员函数
+          addWindowToken 来增加对应的WindowToken对象的，如下所示：去看看吧
+    7. 删除WindowToken
+    8. 增加WindowState  addWindow
+    9. 增加WindowState到窗口堆栈  addWindowToListInOrderLocked
+    10. 删除WindowState  tmpRemoveWindowLocked
+    11. 在指定位置增加WindowState reAddWindowLocked
+    12. 将一个WindowState对象及其所有子WindowState对象增加到窗口堆栈中 reAddWindowToListInOrderLocked
+    13. 将一个WindowToken对象对应的所有WindowState对象及其子WindowState对象增加到窗口堆栈的指定位置上 reAddAppWindowsLocked
+    14. 将一个AppWindowToken对象所对应的WindowState对象及其子 WindowState对象移动到窗口堆栈的指定位置上 moveAppWindowsLocked
+    15. 将一组AppWindowToken对象所对应的WindowState对象及其子 WindowState对象移动到窗口堆栈的指定位置上 moveAppWindowsLocked
+
+    至此，我们就分析完成WindowManagerService服务组织系统中的窗口的方式了。从分析的过程中，可以得到以下结论：
+
+        1. WindowManagerService服务维护有一个AppWindowToken堆栈和一个WindowState堆栈，它们与ActivityManagerService服务维护的Actvity堆栈是有关相同的Z轴位置关系的。
+
+        2. ActivityManagerService服务中的每一个ActivityRecord对象在WindowManagerService服务中都对应有一个AppWindowToken对象，
+           而WindowManagerService服务中的每一个AppWindowToken对象都对应有一组WindowState对象。
+
+        3. 在WindowState堆栈中，AppWindowToken堆栈中的第i+1个AppWindowToken对象所对应的WindowState对象都位于第i个AppWindowToken对象所对应的WindowState对象的上面。
+
+        4. 一个WindowState对象可以附加在另外一个WindowState对象上面，此外，一个WindowState对象还可以有子WindowState对象，它们都是与同一个AppWindowToken对象或者WindowToken对象所对应的。
+
+        5. WindowManagerService服务有两个特殊的WindowToken，它们分别用来描述系统中的输入法窗口令牌和壁纸窗口令牌，其中，输入法窗口位于需要输入法的窗口的上面，而壁纸窗口位于需要壁纸的窗口的下面。
+
+        最后，我们可以将WindowManagerService服务中的AppWindowToken理解成一个Activity组件令牌，而将它所对应的WindowState对象理解成一个Activity窗口。
+        有了这些概念之后，就为学习WindowManagerService服务的各种实现打下坚实的基础。
+
+
+
+
+
+    */
     @Override
     public void addAppToken(int addPos, IApplicationToken token, int taskId, int stackId,
             int requestedOrientation, boolean fullscreen, boolean showWhenLocked, int userId,
@@ -4656,7 +4846,12 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
             Binder.restoreCallingIdentity(origId);
         }
     }
+    /*wwxx 
 
+    参数tokens所描述的是一个IBinder接口，与这些IBinder接口所对应的 AppWindowToken 对象就是接下来要删除的。
+
+
+    */
     @Override
     public void removeAppToken(IBinder token) {
         if (!checkCallingPermission(android.Manifest.permission.MANAGE_APP_TOKENS,
@@ -4871,8 +5066,24 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
             }
         }
         return 0;
-    }
+    } 
+    /*wwxx study part2 11、
 
+    在指定位置增加WindowState是通过调用WindowManagerService类的成员函数reAddWindowLocked来实现的，如下所示：
+
+    参数win描述的即为要增加的 WindowState 对象，而参数 index 描述的即为要将参数win所描述的WindowState对象及其子WindowState对象要增加到窗口堆栈中的起始位置。
+
+    由于参数win所描述的WindowState对象的子WindowState对象的成员变量 mSubLayer 的值可能会小于0，也可能大于0。
+    大于0的子WindowState对象位于参数win所描述的WindowState对象的上面，而小于0的子WindowState对象位于参数win所描述的WindowState对象的下面。
+    因此，WindowManagerService类的成员函数 reAddWindowLocked 先增加那些小于0的子WindowState对象，接着再增加参数win所描述的WindowState对象，最后增加那些大于0的子WindowState对象。
+
+    假设WindowManagerService类的成员函数 reAddWindowLocked 一共在窗口堆栈中增加了N个WindowState对象，那么它的返回值就等于index + N，
+    这样调用者就可以知道参数win所描述的WindowState对象及其子WindowState对象在窗口堆栈中的最高位置是多少。
+
+    基于第9、第10和第11这三操作，可以组合成很多其它的WindowState操作，如接下来的第12、第13、第14和第15个操作所示。
+
+
+    */
     private final int reAddWindowLocked(int index, WindowState win) {
         final WindowList windows = win.getWindowList();
         final int NCW = win.mChildWindows.size();
@@ -8307,6 +8518,7 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
         以便可以正确地反映系统当前的UI状态，这是通过调用WindowManagerService类的成员函数 assignLayersLocked 来实现的。重新计算了现存的其它窗口的Z轴位置之后，又需要再次刷新系统的UI，
         即要对WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 进行递归调用，并且在调用前，将WindowManagerService类的成员变量 mLayoutNeeded 的值设置为true。
         由此就可见，系统UI的刷新过程是非常复杂的。
+
     3、注意，为了防止在刷新系统UI的过程中被重复调用，WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 在刷新系统UI之前，即调用成员函数 
         performLayoutAndPlaceSurfacesLockedInner 之前，会将WindowManagerService类的成员变量 mInLayout 的值设置为true，并且在调用之后，重新将这个成员变量的值设置为false。
         这样，WindowManagerService类的成员函数 performLayoutAndPlaceSurfacesLocked 就可以在一开始的时候检查成员变量 mInLayout 的值是否等于true，如果等于的话，
