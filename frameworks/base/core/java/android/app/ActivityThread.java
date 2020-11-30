@@ -2857,7 +2857,61 @@ scheduleSleeping()方法只是发送了消息SLEEPING，所有消息都在Handle
         r.mPendingRemoveWindow = null;
         r.mPendingRemoveWindowManager = null;
     }
+    /*wwxx wms study part4 7、
+    ActivityThread 类的成员函数 handleResumeActivity 首先调用另外一个成员函数 performResumeActivity 来通知Activity组件，它要被激活了，
+    即会导致Activity组件的成员函数onResume被调用。ActivityThread类的成员函数 performResumeActivity 的返回值是一个ActivityClientRecord对象r，
+    这个ActivityClientRecord对象的成员变量activity描述的就是正在激活的Activity组件a。    
 
+    ActivityThread类的成员函数 handleResumeActivity 接下来判断正在激活的Activity组件接下来是否是可见的。
+    如果是可见的，那么变量 willBeVisible 的值就会等于true。Activity类的成员变量 mStartedActivity 用来描述一个Activity组件是否正在启动一个新的Activity组件，
+    并且等待这个新的Activity组件的执行结果。如果是的话，那么这个Activity组件的成员变量 mStartedActivity 的值就会等于true，表示在新的Activity组件的执行结果返回来之前，
+    当前Activity组件要保持不可见的状态。因此，当Activity组件a的成员变量 mStartedActivity 的值等于true的时候，它接下来就是不可见的，否则的话，就是可见的。  
+    
+    虽然说在Activity组件a的成员变量mStartedActivity的值等于true的情况下，它接下来的状态要保持不可见的，但是有可能它所启动的Activity组件的UI不是全屏的。
+    在这种情况下，Activity组件a的UI仍然是有部分可见的，这时候也要将变量 willBeVisible 的值设置为true。因此，如果前面得到变量willBeVisible的值等于false，
+    那么ActivityThread类的成员函数handleResumeActivity接下来就会通过Binder进程间通信机制来调用ActivityManagerService服务的成员函数 willActivityBeVisible 
+    来检查位于Activity组件a上面的其它Activity组件（包含了Activity组件a正在等待其执行结果的Activity组件）是否是全屏的。
+    如果不是，那么ActivityManagerService服务的成员函数 willActivityBeVisible 的返回值就会等于true，表示接下来需要显示Activity组件a。
+
+    前面得到的 ActivityClientRecord 对象r的成员变量window用来描述当前正在激活的Activity组件a所关联的应用程序窗口对象。
+    当它的值等于null的时候，就表示当前正在激活的Activity组件a所关联的应用程序窗口对象还没有关联一个ViewRoot对象。
+    进一步地，如果这个正在激活的Activity组件a还活着，并且接下来是可见的，即ActivityClientRecord对象r的成员变量mFinished的值等于false，
+    并且前面得到的变量willBeVisible的值等于true，那么这时候就说明需要为与Activity组件a所关联的一个应用程序窗口视图对象关联的一个ViewRoot对象。    
+
+    将一个Activity组件的应用程序窗口视图对象与一个ViewRoot对象关联是通过该Activity组件所使用的窗口管理器来执行的。
+    从前面Android应用程序窗口（Activity）的窗口对象（Window）的创建过程分析一文可以知道，一个Activity组件所使用的本地窗口管理器保存它的成员变量mWindowManager中，
+    这可以通过Activity类的成员函数getWindowManager来获得。在接下来的Step 10中，我们再分析Activity类的成员函数getWindowManager的实现。 
+
+    由于我们现在要给Activity组件a的应用程序窗口视图对象关联一个ViewRoot对象，因此，我们就需要首先获得这个应用程序窗口视图对象。
+    从前面的Step 6可以知道，一个Activity组件的应用程序窗口视图对象保存在与其所关联的一个应用程序窗口对象的内部，因此，我们又要首先获得这个应用程序窗口对象。
+    与一个Activity组件所关联的应用程序窗口对象可以通过调用该Activity组件的成员函数getWindow来获得。
+    一旦获得了这个应用程序窗口对象（类型为PhoneWindow）之后，我们就可以调用它的成员函数getDecorView来获得它内部的视图对象。
+    在接下来的Step 8和Step 9中，我们再分别分析Activity类的成员函数Activity类的成员函数getWindow和PhoneWindow类的成员函数getDecorView的实现。
+
+    在关联应用程序窗口视图对象和ViewRoot对象的时候，还需要第三个参数，即应用程序窗口的布局参数，这是一个类型为WindowManager.LayoutParams的对象，
+    可以通过调用应用程序窗口的成员函数getAttributes来获得。一切准备就绪之后，还要判断最后一个条件是否成立，即当前正在激活的Activity组件a在本地进程中是否是可见的，
+    即它的成员变量mVisibleFromClient的值是否等于true。
+    如果是可见的，那么最后就可以调用前面所获得的一个本地窗口管理器wm（类型为LocalWindowManager）的成员函数addView来执行关联应用程序窗口视图对象和ViewRoot对象的操作。
+
+    接下来，我们就分别分析Activity类的成员函数getWindow、PhoneWindow类的成员函数getDecorView、ctivity类的成员函数getWindowManager以及LocalWindowManager类的成员函数addView的实现。
+    
+    先看 Activity.getWindow 
+        这个函数定义在文件frameworks/base/core/java/android/app/Activity.java中。我们去看看
+
+    Step 9. PhoneWindow.getDecorView
+        这个函数定义在文件frameworks/base/policy/src/com/android/internal/policy/impl/PhoneWindow.java中。我们去看看
+
+    Step 10. Activity.getWindowManager
+        这个函数定义在文件frameworks/base/core/java/android/app/Activity.java中。我们去看看
+
+    Step 11. WindowManagerImpl.addView
+        这个函数定义在文件frameworks/base/core/java/android/view/WindowManagerImpl.java中。我们去看看
+    Step 12. WindowManagerGlobal.addView
+        这个函数定义在文件frameworks/base/core/java/android/view/WindowManagerGlobal.java中。我们去看看
+
+
+
+    */
     final void handleResumeActivity(IBinder token, boolean clearHide, boolean isForward,
             boolean reallyResume) {
         // If we are getting ready to gc after going to the background, well

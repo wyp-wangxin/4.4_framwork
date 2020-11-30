@@ -92,6 +92,53 @@ import java.util.HashSet;
  *
  * {@hide}
  */
+
+/*wwxx wms study part4 
+
+ViewRootImpl 相当于是MVC模型中的Controller，它有以下职责：
+
+        1. 负责为应用程序窗口视图创建Surface。
+
+        2. 配合WindowManagerService来管理系统的应用程序窗口。
+
+        3. 负责管理、布局和渲染应用程序窗口视图的UI。
+  那么，应用程序窗口的视图对象及其所关联的ViewRoot对象是什么时候开始创建的呢？ 从前面Android应用程序窗口（Activity）的窗口对象（Window）的创建过程分析一文可以知道，
+  Activity组件在启动的时候，系统会为它创建窗口对象（Window），同时，系统也会为这个窗口对象创建视图对象。
+  另一方面，当Activity组件被激活的时候，系统如果发现与它的应用程序窗口视图对象所关联的ViewRoot对象还没有创建，那么就会先创建这个ViewRoot对象，以便接下来可以将它的UI渲染出来。     
+
+从前面Android应用程序启动过程源代码分析一文可以知道，Activity组件在启动的过程中，会调用 ActivityThread 类的成员函数handleLaunchActivity，用来创建以及首次激活Activity组件，
+因此，接下来我们就从这个函数开始，具体分析应用程序窗口的视图对象及其所关联的ViewRoot对象的创建过程 .
+
+这个过程一共可以分为13个步骤，接下来我们就详细分析每一个步骤。
+
+Step 1. ActivityThread.handleLaunchActivity
+    这个函数定义在文件frameworks/base/core/java/android/app/ActivityThread.java文件中
+
+Step 2. ActivityThread.performLaunchActivity
+    这个函数定义在文件frameworks/base/core/java/android/app/ActivityThread.java文件中。
+    这一步可以参考Android应用程序窗口（Activity）的运行上下文环境（Context）的创建过程分析一文的Step 1，它主要就是创建一个Activity组件实例，
+    并且调用这个Activity组件实例的成员函数onCreate来让其执行一些自定义的初始化工作。
+
+Step 3. Activity.onCreate
+    这个函数定义在文件frameworks/base/core/java/android/app/Activity.java中。
+     这一步可以参考Android应用程序窗口（Activity）的运行上下文环境（Context）的创建过程分析一文的Step 10。我们在实现一个Activity组件的时候，
+     也就是在实现一个Activity子类的时候，一般都会重写成员函数onCreate，以便可以执行一些自定义的初始化工作，其中就包含初始化UI的工作。
+    
+    @Override  
+    public void onCreate(Bundle savedInstanceState) {  
+        super.onCreate(savedInstanceState);  
+        setContentView(R.layout.main);  
+  
+        ......  
+    } 
+
+    其中，调用从父类Activity继承下来的成员函数 setContentView 就是用来创建应用程序窗口视图对象的。
+    接下来，我们就继续分析Activity类的成员函数 setContentView 的实现。    
+
+Step 4. Activity.setContentView
+    这个函数定义在文件frameworks/base/core/java/android/app/Activity.java中。我们去看看
+
+*/
 @SuppressWarnings({"EmptyCatchBlock", "PointlessBooleanExpression"})
 public final class ViewRootImpl implements ViewParent,
         View.AttachInfo.Callbacks, HardwareRenderer.HardwareDrawCallbacks {
@@ -448,6 +495,27 @@ public final class ViewRootImpl implements ViewParent,
     /**
      * We have one child
      */
+    /*wwxx wms study part4 13、
+
+    参数view所描述的一个View对象会分别被保存在 ViewRootimpl 类的成员变量mView以及成员变量mAttachInfo所描述的一个 AttachInfo 的成员变量 mRootView 中，
+    而参数attrs所描述的一个WindowManager.LayoutParams对象的内容会被拷贝到 ViewRootimpl 类的成员变量mWindowAttributes中去。
+
+    当参数 panelParentView 的值不等于null的时候，就表示参数view描述的是一个子应用程序窗口视图对象。
+    在这种情况下，参数panelParentView描述的就是一个父应用程序窗口视图对象。
+    这时候我们就需要获得用来描述这个父应用程序窗口视图对象的一个类型为W的Binder本地对象的IBinder接口，
+    以便可以保存在 ViewRootimpl 类的成员变量 mAttachInfo 所描述的一个AttachInfo的成员变量mPanelParentWindowToken中去。
+    这样以后就可以知道 ViewRootimpl 类的成员变量mView所描述的一个子应用程序窗口视图所属的父应用程序窗口视图是什么了。
+    注意，通过调用参数 panelParentView 的所描述的一个View对象的成员函数 getApplicationWindowToken 即可以获得一个对应的W对象的IBinder接口。
+
+    上述操作执行完成之后， ViewRootimpl 类的成员函数setView就可以将成员变量 mAdded 的值设置为true了，表示当前正在处理的一个ViewRoot对象已经关联好一个View对象了。
+    接下来，ViewRoot类的成员函数setView还需要执行两个操作：
+
+       1. 调用 ViewRootimpl 类的另外一个成员函数 requestLayout 来请求对应用程序窗口视图的UI作第一次布局。
+
+       2. 调用 ViewRootimpl 类的静态成员变量 mWindowSession 所描述的一个类型为Session的Binder代理对象的成员函数add来请求WindowManagerService增加一个WindowState对象，
+       以便可以用来描述当前正在处理的一个 ViewRootimpl 所关联的一个应用程序窗口。
+
+    */
     public void setView(View view, WindowManager.LayoutParams attrs, View panelParentView) {
         synchronized (this) {
             if (mView == null) {

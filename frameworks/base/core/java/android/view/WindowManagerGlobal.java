@@ -108,14 +108,14 @@ public final class WindowManagerGlobal {
     private static IWindowSession sWindowSession;
 
     private final Object mLock = new Object();
-	// wwxx �洢����Window����Ӧ��View
+	// wwxx ´æ´¢ËùÓÐWindowËù¶ÔÓ¦µÄView
     private final ArrayList<View> mViews = new ArrayList<View>();
-    //�洢����Window��Ӧ��ViewRootImpl
+    //´æ´¢ËùÓÐWindow¶ÔÓ¦µÄViewRootImpl
     private final ArrayList<ViewRootImpl> mRoots = new ArrayList<ViewRootImpl>();
-    //�洢����Window��Ӧ�Ĳ��ֲ���
+    //´æ´¢ËùÓÐWindow¶ÔÓ¦µÄ²¼¾Ö²ÎÊý
     private final ArrayList<WindowManager.LayoutParams> mParams =
             new ArrayList<WindowManager.LayoutParams>();
-    //�洢���н�Ҫ��ɾ����View,��Window        
+    //´æ´¢ËùÓÐ½«Òª±»É¾³ýµÄView,¼´Window        
     private final ArraySet<View> mDyingViews = new ArraySet<View>();
     private boolean mNeedsEglTerminate;
 
@@ -149,7 +149,7 @@ public final class WindowManagerGlobal {
                 try {
                     InputMethodManager imm = InputMethodManager.getInstance();
                     IWindowManager windowManager = getWindowManagerService();
-                    //wwxx ����WMS��openSession����һ��Session����
+                    //wwxx µ÷ÓÃWMSµÄopenSession´´½¨Ò»¸öSession¶ÔÏó
                     sWindowSession = windowManager.openSession(
                             imm.getClient(), imm.getInputContext());
                     float animatorScale = windowManager.getAnimationScale(2);
@@ -189,7 +189,15 @@ public final class WindowManagerGlobal {
 
         return null;
     }
-	//wwxx ��һ�����飺�������Ƿ�Ϸ����������Window,��Ҫ�������ֲ���
+	/*wwxx wms study part4 12、
+    
+    成员函数 addView 为参数view所描述的一个View对象和参数params所描述的一个WindowManager.LayoutParams对象关联好一个ViewRoot对象root之后，
+    最后还会将这个View对view象和这个WindowManager.LayoutParams对象，以及变量panelParentView所描述的一个父应用程序窗视图对象，
+    保存在这个ViewRoot对象root的内部去，这是通过调用这个ViewRoot对象root的成员函数setView来实现的，因此，接下来我们就继续分析ViewRoot类的成员函数setView的实现。   
+        这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java中。
+
+
+    */ 
     public void addView(View view, ViewGroup.LayoutParams params,
             Display display, Window parentWindow) {
         if (view == null) {
@@ -249,15 +257,15 @@ public final class WindowManagerGlobal {
                 }
             }
             
-			//�ڶ�������	:����ViewRootImpl����View���ӵ��б��У�
-			//����ÿ�ζ���newһ����������˵����һ��addView���ͻ���һ��ViewRootImpl��
+			//µÚ¶þ¼þÊÂÇé	:´´½¨ViewRootImpl£¬½«ViewÌí¼Óµ½ÁÐ±íÖÐ£¬
+			//ÕâÀïÃ¿´Î¶¼»ánewÒ»¸ö¶ÔÏó£¬ËùÒÔËµµ÷ÓÃÒ»´ÎaddView£¬¾Í»áÓÐÒ»¸öViewRootImpl¡£
             root = new ViewRootImpl(view.getContext(), display);
-			/*ViewRootImpl�Ǹ�ʲô�أ�
+			/*ViewRootImplÊÇ¸öÊ²Ã´ÄØ£¿
 
-			����˵��ViewRoot�൱����MVCģ���е�Controller����������ְ��
-			1. ����ΪӦ�ó��򴰿���ͼ����Surface��
-			2. ���WindowManagerService������ϵͳ��Ӧ�ó��򴰿ڡ�
-			3. ������������ֺ���ȾӦ�ó��򴰿���ͼ��UI��*�����ڿ�ViewRootImpl��setView ������
+			¼òµ¥À´Ëµ£¬ViewRootÏàµ±ÓÚÊÇMVCÄ£ÐÍÖÐµÄController£¬ËüÓÐÒÔÏÂÖ°Ôð£º
+			1. ¸ºÔðÎªÓ¦ÓÃ³ÌÐò´°¿ÚÊÓÍ¼´´½¨Surface¡£
+			2. ÅäºÏWindowManagerServiceÀ´¹ÜÀíÏµÍ³µÄÓ¦ÓÃ³ÌÐò´°¿Ú¡£
+			3. ¸ºÔð¹ÜÀí¡¢²¼¾ÖºÍäÖÈ¾Ó¦ÓÃ³ÌÐò´°¿ÚÊÓÍ¼µÄUI¡£*ÎÒÃÇÔÚ¿´ViewRootImplµÄsetView ·½·¨¡£
 
 			*/
 			
@@ -270,7 +278,7 @@ public final class WindowManagerGlobal {
 
         // do this last because it fires off messages to start doing things
         try {
-        //���������� ��ʹ��ViewRootImpl���󣬵���setView
+        //µÚÈý¼þÊÂÇé £ºÊ¹ÓÃViewRootImpl¶ÔÏó£¬µ÷ÓÃsetView
             root.setView(view, wparams, panelParentView);
         } catch (RuntimeException e) {
             // BadTokenException or InvalidDisplayException, clean up.

@@ -799,6 +799,16 @@ public class Activity extends ContextThemeWrapper
     }
 
     /** Retrieve the window manager for showing custom windows. */
+    /*wwxx wms study part4 10、
+    
+	从前面Android应用程序窗口（Activity）的运行上下文环境（Context）的创建过程分析一文可以知道，
+	Activity类的成员变量mWindowManager指向的一是类型为LocalWindowManager的本地窗口管理器，Activity类的成员函数getWindowManager直接将它返回给调用者。
+
+    这一步执完成之后，返回到前面的Step 7中，即ActivityThread类的成员函数handleResumeActivity中，接下来就会继续调用前面所获得的一个LocalWindowManager对象的成员函数addView
+    来为当前正在激活的Activity组件的应用程序窗口视图对象关联一个ViewRoot对象。
+
+
+    */
     public WindowManager getWindowManager() {
         return mWindowManager;
     }
@@ -811,6 +821,16 @@ public class Activity extends ContextThemeWrapper
      * @return Window The current window, or null if the activity is not
      *         visual.
      */
+    /*wwxx wms study part2 8、
+
+    从前面Android应用程序窗口（Activity）的窗口对象（Window）的创建过程分析一文可以知道，
+    Activity类的成员变量mWindow指向的是一个类型为PhoneWindow的窗口对象，因此，Activity类的成员函数getWindow返回给调用者的是一个PhoneWindow对象。
+
+    这一步执完成之后，返回到前面的Step 7中，即ActivityThread类的成员函数handleResumeActivity中，
+    接下来就会继续调用前面所获得的一个PhoneWindow对象的成员函数getDecorView来获得当前正在激活的Activity组件所关联的一个应用程序窗口视图对象。
+
+
+    */
     public Window getWindow() {
         return mWindow;
     }
@@ -1925,6 +1945,15 @@ public class Activity extends ContextThemeWrapper
      * @see #setContentView(android.view.View)
      * @see #setContentView(android.view.View, android.view.ViewGroup.LayoutParams)
      */
+    /*wwxx wms study part4 5、
+ 	Activity类的成员函数 setContentView 首先调用另外一个成员函数getWindow来获得成员变量 mWindow 所描述的一个窗口对象，
+ 	接着再调用这个窗口对象的成员函数 setContentView 来执行创建应用程序窗口视图对象的工作。
+
+    从前面Android应用程序窗口（Activity）的窗口对象（Window）的创建过程分析一文可以知道，Activity类的成员变量 mWindow 指向的是一个PhoneWindow对象，
+    因此，接下来我们就继续分析PhoneWindow类的成员函数 setContentView 的实现。
+    这个函数定义在文件frameworks/base/policy/src/com/android/internal/policy/impl/PhoneWindow.java中。我们去看看。
+
+    */
     public void setContentView(int layoutResID) {
         getWindow().setContentView(layoutResID);
         initActionBar();

@@ -42,10 +42,10 @@ package android.view;
  * @see WindowManagerGlobal
  * @hide
  */
- /* wwxx ViewManager��ʵ������WindowManagerImpl�����Ե��õ���WindowManagerImpl��addView������
- WindowManagerImpl���ӾͰ���������WindowManagerGlobal��
- ����Ҫȥ��WindowManagerGlobal��addView������WindowManagerGlobal����������Window��ȫ���࣬
- ������ά���˼���ȫ�ֵ��б���
+ /* wwxx ViewManagerµÄÊµÏÖÀàÊÇWindowManagerImpl£¬ËùÒÔµ÷ÓÃµÄÊÇWindowManagerImplµÄaddView·½·¨£¬
+ WindowManagerImpl½ô½Ó¾Í°ÑÕâ¸ö»î½»¸øÁËWindowManagerGlobal£¬
+ ËùÒÔÒªÈ¥¿´WindowManagerGlobalµÄaddView·½·¨¡£WindowManagerGlobalÊÇÓÃÀ´¹ÜÀíWindowµÄÈ«¾ÖÀà£¬
+ ËüÀïÃæÎ¬»¤ÁË¼¸¸öÈ«¾ÖµÄÁÐ±í¡£
  
  */
 public final class WindowManagerImpl implements WindowManager {
@@ -69,7 +69,11 @@ public final class WindowManagerImpl implements WindowManager {
     public WindowManagerImpl createPresentationWindowManager(Display display) {
         return new WindowManagerImpl(display, mParentWindow);
     }
+    /*wwxx wms study part2 11、
+    从前面Android应用程序窗口（Activity）的窗口对象（Window）的创建过程分析一文可以知道， WindowManagerImpl 类的成员变量 mGlobal 指向的是一个 WindowManagerGlobal 对象，
+    WindowManagerImpl 类的成员函数addView接下来调用 WindowManagerGlobal 类的成员函数addView来给参数view所描述的一个应用程序窗口视图对象关联一个ViewRoot对象。    
 
+    */
     @Override
     public void addView(View view, ViewGroup.LayoutParams params) {
         mGlobal.addView(view, params, mDisplay, mParentWindow);

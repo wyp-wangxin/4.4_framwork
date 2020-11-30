@@ -309,6 +309,22 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         mUiOptions = (mUiOptions & ~mask) | (uiOptions & mask);
     }
 
+    /*wwxx wms study part4 5、
+    PhoneWindow类的成员变量 mContentParent 用来描述一个类型为DecorView的视图对象，或者这个类型为DecorView的视图对象的一个子视图对象，用作UI容器。
+    当它的值等于null的时候，就说明正在处理的应用程序窗口的视图对象还没有创建。在这种情况下，就会调用成员函数 installDecor 来创建应用程序窗口视图对象。
+    否则的话，就说明是要重新设置应用程序窗口的视图。在重新设置之前，首先调用成员变量 mContentParent 所描述的一个ViewGroup对象来移除原来的UI内空。
+
+    由于我们是在 Activity 组件启动的过程中创建应用程序窗口视图的，因此，我们就假设此时PhoneWindow类的成员变量 mContentParent 的值等于null。
+    接下来，函数就会调用成员函数 installDecor 来创建应用程序窗口视图对象，接着再通过调用PhoneWindow类的成员变量 mLayoutInflater 所描述的一个LayoutInflater
+    对象的成员函数 inflate 来将参数layoutResID所描述的一个UI布局设置到前面所创建的应用程序窗口视图中去，
+    最后还会调用一个 Callback 接口的成员函数 onContentChanged 来通知对应的Activity组件，它的视图内容发生改变了。
+    从前面Android应用程序窗口（Activity）的窗口对象（Window）的创建过程分析一文可以知道，Activity 组件自己实现了这个Callback接口，
+    并且将这个 Callback 接口设置到了与它所关联的应用程序窗口对象的内部去，因此，前面实际调用的是Activity类的成员函数 onContentChanged 来发出一个视图内容变化通知。    
+
+    接下来，我们就继续分析PhoneWindow类的成员函数 installDecor 的实现，以便可以继续了解应用程序窗口视图对象的创建过程。
+        这个函数定义在文件frameworks/base/policy/src/com/android/internal/policy/impl/PhoneWindow.java中。 我们去看看。
+
+    */
     @Override
     public void setContentView(int layoutResID) {
         if (mContentParent == null) {
@@ -1700,7 +1716,13 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
     @Override
     protected void onActive() {
     }
+    /*wwxx wms study part4 9
+    PhoneWindow类的成员函数getDecorView首先判断成员变量mDecor的值是否等于null。如果是的话，那么就说明当前正在处理的应用程序窗口还没有创建视图对象。
+    这时候就会调用另外一个成员函数installDecor来创建这个视图对象。从前面的调用过程可以知道，当前正在处理的应用程序窗口已经创建过视图对象，
+    因此，这里的成员变量mDecor的值不等于null，PhoneWindow类的成员函数getDecorView直接将它返回给调用者。
 
+    这一步执完成之后，返回到前面的Step 7中，即ActivityThread类的成员函数handleResumeActivity中，接下来就会继续调用当前正在激活的Activity组件的成员函数getWindowManager来获得一个本地窗口管理器。
+    */
     @Override
     public final View getDecorView() {
         if (mDecor == null) {
@@ -3100,7 +3122,31 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
     public void alwaysReadCloseOnTouchAttr() {
         mAlwaysReadCloseOnTouchAttr = true;
     }
+    /*wwxx wms study part4 6、
 
+    由于我们是在Activity组件启动的过程中创建应用程序窗口视图的，因此，我们同时假设此时PhoneWindow类的成员变量 mDecor 的值等于null。
+    这时候PhoneWindow类的成员函数 installDecor 就会调用另外一个成员函数 generateDecor 来创建一个DecorView对象，并且保存在PhoneWindow类的成员变量mDecor中。
+
+    PhoneWindow 类的成员函数 installDecor 接着再调用另外一个成员函数 generateLayout 来根据当前应用程序窗口的Feature来加载对应的窗口布局文件。
+    这些布局文件保存在frameworks/base/core/res/res/layout目录下，它们必须包含有一个id值为“content”的布局控件。
+    这个布局控件必须要从 ViewGroup 类继承下来，用来作为窗口的UI容器。
+    PhoneWindow 类的成员函数 generateLayout 执行完成之后，就会这个id值为“content”的ViewGroup控件来给PhoneWindow类的成员函数installDecor，后者再将其保存在成员变量 mContentParent 中。    
+
+    PhoneWindow类的成员函数installDecor还会检查前面加载的窗口布局文件是否包含有一个id值为“title”的TextView控件。
+    如果包含有的话，就会将它保存在PhoneWindow类的成员变量 mTitleView 中，用来描述当前应用程序窗口的标题栏。
+    但是，如果当前应用程序窗口是没有标题栏的，即它的Feature位FEATURE_NO_TITLE的值等于1，那么PhoneWindow类的成员函数installDecor就需要将前面得到的标题栏隐藏起来。
+    注意，PhoneWindow类的成员变量 mTitleView 所描述的标题栏有可能是包含在一个id值为“title_container”的容器里面的，在这种情况下，就需要隐藏该标题栏容器。
+    另一方面，如果当前应用程序窗口是设置有标题栏的，那么PhoneWindow类的成员函数installDecor就会设置它的标题栏文字。
+    应用程序窗口的标题栏文字保存在PhoneWindow类的成员变量mTitle中，我们可以调用PhoneWindow类的成员函数setTitle来设置。
+
+    这一步执行完成之后，应用程序窗口视图就创建完成了，回到前面的Step 1中，即ActivityThread类的成员函数 handleLaunchActivity 中，
+    接下来就会调用ActivityThread类的另外一个成员函数 handleResumeActivity 来激活正在启动的Activity组件。由于在是第一次激活该Activity组件，
+    因此，在激活之前，还会为该Activity组件创建一个 ViewRoot 对象，并且与前面所创建的应用程序窗口视图关联起来
+    ，以便后面可以通过该ViewRoot对象来控制应用程序窗口视图的UI展现。
+
+
+
+    */
     private void installDecor() {
         if (mDecor == null) {
             mDecor = generateDecor();
