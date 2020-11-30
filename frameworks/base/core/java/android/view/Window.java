@@ -474,6 +474,17 @@ public abstract class Window {
      *
      * @param wm The window manager for adding new windows.
      */
+    /*wwxx wms study part3 7、
+    参数 appToken 用来描述当前正在处理的窗口是与哪一个Activity组件关联的，它是一个 Binder 代理对象，引用了在ActivityManagerService这一侧所创建的一个类型为ActivityRecord的Binder本地对象。
+    从前面Android应用程序的Activity启动过程简要介绍和学习计划一系列文章可以知道，每一个启动起来了的Activity组件在ActivityManagerService这一侧，都有一个对应的ActivityRecord对象，
+    用来描述该Activity组件的运行状态。这个Binder代理对象会被保存在Window类的成员变量 mAppToken 中，这样当前正在处理的窗口就可以知道与它所关联的Activity组件是什么。
+
+    参数 appName 用来描述当前正在处理的窗口所关联的Activity组件的名称，这个名称会被保存在Window类的成员变量 mAppName 中。
+
+    参数 wm 用来描述一个窗口管理器。从前面的调用过程可以知道， 这里传进来的参数wm的值等于null，因此，函数mContext.getSystemService(Context.WINDOW_SERVICE) 默认的窗口管理器。
+    
+
+    */
     public void setWindowManager(WindowManager wm, IBinder appToken, String appName,
             boolean hardwareAccelerated) {
         mAppToken = appToken;
@@ -549,6 +560,17 @@ public abstract class Window {
      *
      * @param callback The desired Callback interface.
      */
+    /*wwxx wms study part3 5、
+    正在启动的Activity组件会将它所实现的一个Callback接口设置到与它所关联的一个PhoneWindow对象的父类Window的成员变量 mCallback 中去，
+    这样当这个PhoneWindow对象接收到系统给它分发的IO输入事件，
+    例如，键盘和触摸屏事件，转发给与它所关联的Activity组件处理，这一点可以参考前面Android应用程序键盘（Keyboard）消息处理机制分析一文。
+
+     这一步执行完成之后，回到前面的Step 1中，即Activity类的成员函数attach中，接下来就会继续调用前面所创建的PhoneWindow对象
+
+    从父类Window继承下来的成员函数 setSoftInputMode 来设置应用程序窗口的软键盘输入区域的显示模式，因此，接下来我们就继续分析Window类的成员函数setSoftInputMode的实现。
+    这个函数定义在文件frameworks/base/core/java/android/view/Window.java中。
+
+    */
     public void setCallback(Callback callback) {
         mCallback = callback;
     }
@@ -685,6 +707,36 @@ public abstract class Window {
      * "unspecified" here will override the input mode the window would
      * normally retrieve from its theme.
      */
+    /*wwxx wms study part3 6、
+    参数mode有SOFT_INPUT_STATE_UNSPECIFIED、SOFT_INPUT_STATE_UNCHANGED、SOFT_INPUT_STATE_HIDDEN、SOFT_INPUT_STATE_ALWAYS_HIDDEN、SOFT_INPUT_STATE_VISIBLE和SOFT_INPUT_STATE_ALWAYS_VISIBLE
+    一共六个取值，用来描述窗口的软键盘输入区域的显示模式，它们的含义如下所示：
+
+      1. SOFT_INPUT_STATE_UNSPECIFIED ：没有指定软键盘输入区域的显示状态。
+
+      2. SOFT_INPUT_STATE_UNCHANGED ：不要改变软键盘输入区域的显示状态。
+
+      3. SOFT_INPUT_STATE_HIDDEN ：在合适的时候隐藏软键盘输入区域，例如，当用户导航到当前窗口时。
+
+      4. SOFT_INPUT_STATE_ALWAYS_HIDDEN ：当窗口获得焦点时，总是隐藏软键盘输入区域。
+
+      5. SOFT_INPUT_STATE_VISIBLE ：在合适的时候显示软键盘输入区域，例如，当用户导航到当前窗口时。
+
+      6. SOFT_INPUT_STATE_ALWAYS_VISIBLE ：当窗口获得焦点时，总是显示软键盘输入区域。
+
+    当参数mode的值不等于 SOFT_INPUT_STATE_UNSPECIFIED 时，就表示当前窗口被指定软键盘输入区域的显示模式，
+    这时候Window类的成员函数setSoftInputMode就会将成员变量 mHasSoftInputMode 的值设置为true，
+    并且将这个显示模式保存在用来描述窗口布局属性的一个WindowManager.LayoutParams对象的成员变量 softInputMode 中，
+    否则的话，就会将成员变量 mHasSoftInputMode 的值设置为false。
+
+    设置完成窗口的软键盘输入区域的显示模式之后，如果Window类的成员变量 mCallback 指向了一个窗口回调接口，
+    那么Window类的成员函数 setSoftInputMod e还会调用它的成员函数 onWindowAttributesChanged 来通知与窗口所关联的Activity组件，它的窗口布局属性发生了变化。
+
+    这一步执行完成之后，回到前面的Step 1中，即Activity类的成员函数attach中，接下来就会继续调用前面所创建的PhoneWindow对象从父类Window继承下来的成员函数 setWindowManager 
+    来设置应用程序窗口的本地窗口管理器，因此，接下来我们就继续分析Window类的成员函数 setWindowManager 的实现。
+    这个函数定义在文件frameworks/base/core/java/android/view/Window.java中 ,去看看吧！
+
+
+    */
     public void setSoftInputMode(int mode) {
         final WindowManager.LayoutParams attrs = getAttributes();
         if (mode != WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED) {

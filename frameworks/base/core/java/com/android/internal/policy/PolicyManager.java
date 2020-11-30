@@ -25,7 +25,15 @@ import android.view.WindowManagerPolicy;
 /**
  * {@hide}
  */
+/*wwxx wms study part3 2、
 
+PolicyManager是一个窗口管理策略类，它在第一次被使用的时候，就会创建一个Policy类实例，并且保存在静态成员变量 sPolicy 中，以后PolicyManager类的窗口管理策略就是通过这个Policy类实例来实现的，
+例如，PolicyManager类的静态成员函数makeNewWindow就是通过调用这个Policy类实例的成员函数makeNewWindow来创建一个具体的应用程序窗口的。
+
+接下来，我们就继续分析Policy类的成员函数 makeNewWindow 的实现。
+这个函数定义在文件frameworks/base/policy/src/com/android/internal/policy/impl/Policy.java中。 去看看
+
+*/
 public final class PolicyManager {
     private static final String POLICY_IMPL_CLASS_NAME =
         "com.android.internal.policy.impl.Policy";

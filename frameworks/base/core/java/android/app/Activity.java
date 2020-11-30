@@ -5181,7 +5181,22 @@ public class Activity extends ContextThemeWrapper
         attach(context, aThread, instr, token, 0, application, intent, info, title, parent, id,
             lastNonConfigurationInstances, config);
     }
-    
+    /*wwxx study part3 1、
+
+    函数首先调用PolicyManager类的静态成员函数makeNewWindow来创建一个类型为PhoneWindow的应用程序窗口，并且保存在Activity类的成员变量 mWindow 中。
+    有了这个类型为PhoneWindow的应用程序窗口，函数接下来还会调用它的成员函数 setCallback 、 setSoftInputMode 和 setWindowManager 来设置窗口回调接口、软键盘输入区域的显示模式和本地窗口管理器。
+
+    PhoneWindow类的成员函数 setCallback 、 setSoftInputMode 和 setWindowManager 都是从父类Window继承下来的，因此，接下来我们就继续分析PolicyManager类的静态成员函数 makeNewWindow，
+    以及Window类的成员函数setCallback、setSoftInputMode和setWindowManager的实现。
+
+	Step 2. PolicyManager.makeNewWindow
+	Step 3. Policy.makeNewWindow
+	Step 4. new PhoneWindow
+	Step 5. Window.setCallback
+	Step 6. Window.setSoftInputMode
+	Step 7. Window.setWindowManager
+	
+    */
     final void attach(Context context, ActivityThread aThread,
             Instrumentation instr, IBinder token, int ident,
             Application application, Intent intent, ActivityInfo info,

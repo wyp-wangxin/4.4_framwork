@@ -233,6 +233,35 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
     static final RotationWatcher sRotationWatcher = new RotationWatcher();
 
+
+    /*wwxx wms study part3 4、
+    PhoneWindow类的构造函数很简单，它首先调用父类Window的构造函数来执行一些初始化操作，接着再调用 LayoutInflater 的静态成员函数from创建一个LayoutInflater实例，
+    并且保存在成员变量 mLayoutInflater 中。这样，PhoneWindow类以后就可以通过成员变量 mLayoutInflater 来创建应用程序窗口的视图，这个视图使用类型为 DecorView 的成员变量 mDecor 来描述。
+    PhoneWindow类还有另外一个类型为 ViewGroup 的成员变量 mContentParent ，用来描述一个视图容器，这个容器存放的就是成员变量 mDecor 所描述的视图的内容，不过这个容器也有可能指向的是mDecor本身。
+    在后面的文章中，我们再详细分析类型为PhoneWindow的应用程序窗口的视图的创建过程。
+
+
+    Window的构造函数定义在文件frameworks/base/core/java/android/view/Window.java中，
+    它的实现很简单，只是初始化了其成员变量mContext，如下所示
+
+    public abstract class Window {
+        ......
+        private final Context mContext;
+        ......
+        public Window(Context context) {
+            mContext = context;
+        }
+        ......
+    }
+
+    从前面的调用过程可以知道，参数context描述的是正在启动的Activity组件，将它保存在Window类的成员变量 mContext 之后，Window类就可以通过它来访问与Activity组件相关的资源了。
+    这一步执行完成之后，回到前面的 Step 1中，即Activity类的成员函数attach中，接下来就会继续调用前面所创建的PhoneWindow对象从父类Window继承下来的成员函数setCallback来设置窗口回调接口，
+    因此，接下来我们就继续分析Window类的成员函数setCallback的实现。
+
+     Step 5. Window.setCallback
+     这个函数定义在文件frameworks/base/core/java/android/view/Window.java中。 我们去看看。
+
+    */
     public PhoneWindow(Context context) {
         super(context);
         mLayoutInflater = LayoutInflater.from(context);

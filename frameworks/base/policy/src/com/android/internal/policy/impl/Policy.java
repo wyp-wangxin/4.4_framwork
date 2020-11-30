@@ -55,7 +55,13 @@ public class Policy implements IPolicy {
             }
         }
     }
+    /*wwxx wms study part3 4、
+    Policy类的成员函数makeNewWindow的实现很简单，它只是创建了一个PhoneWindow对象，然后返回给调用者。
 
+    接下来，我们就继续分析 PhoneWindow 类的构造函数的实现，以便可以了解一个类型为PhoneWindow的应用程序窗口的创建过程。
+    这个函数定义在文件frameworks/base/policy/src/com/android/internal/policy/impl/PhoneWindow.java中。我们去看看
+
+    */
     public Window makeNewWindow(Context context) {
         return new PhoneWindow(context);
     }
