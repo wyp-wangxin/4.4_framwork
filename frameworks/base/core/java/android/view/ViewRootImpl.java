@@ -179,18 +179,16 @@ public final class ViewRootImpl implements ViewParent,
             = new ArrayList<ComponentCallbacks>();
 
     final Context mContext;
-    /*wwxx
-	AppÓëWMSµÄÁ¬½Ó£¬Ê×ÏÈ»á½¨Á¢Ò»¸öSessionµ½WMS£¬Ö®ºó¾Í»áÍ¨¹ýIWindowSession½Ó¿ÚÓëWMSÖÐµÄSessionÖ±½ÓÍ¨ÐÅ£¬
-	IWindowSessionÀàÊÇÊ²Ã´£¿ËüÖ¸ÏòÁËÒ»¸öÊµÏÖÁËIWindowSession½Ó¿ÚµÄSession´úÀí¶ÔÏó¡£
-	µ±Ó¦ÓÃ³ÌÐò½ø³ÌÆô¶¯µÚÒ»¸öActivity×é¼þµÄÊ±ºò£¬Ëü¾Í»áÇëÇóWMS·þÎñ·¢ËÍÒ»¸ö½¨Á¢Á¬½ÓµÄBinder½ø³Ì¼äÍ¨ÐÅÇëÇó¡£
-	WMS·þÎñ½ÓÊÕµ½Õâ¸öÇëÇóÖ®ºó£¬¾Í»áÔÚÄÚ²¿´´½¨Ò»¸öÀàÐÍÎªSessionµÄBinder±¾µØ¶ÔÏó£¬
-	²¢ÇÒ½«Õâ¸öBinder±¾µØ¶ÔÏó·µ»Ø¸øÓ¦ÓÃ³ÌÐò½ø³Ì£¬App¾Í»áµÃµ½Ò»¸öSession´úÀí¶ÔÏó£¬
-	²¢ÇÒ±£´æÔÚViewRootImplÀàµÄ³ÉÔ±±äÁ¿mWindowSessionÖÐ
+    /*wwxx wms study part5 
+    ViewRootimpl 类有一个成员变量 mWindowSession，它指向了一个实现了IWindowSession接口的Session代理对象。当应用程序进程启动第一个Activity组件的时候，
+    它就会请求WindowManagerService服务发送一个建立连接的Binder进程间通信请求。WindowManagerService服务接收到这个请求之后，就会在内部创建一个类型为Session的Binder本地对象，
+    并且将这个Binder本地对象返回给应用程序进程，后者于是就会得到一个Session代理对象，并且保存在 ViewRootimpl 类的静态成员变量mWindowSession中。
 
-	µ±AppÓÐÁËÕâ¸öÔ¶¶ËSession´úÀí¶ÔÏómWindowSessionÖ®ºó£¬ËùÓÐÏòWMSµÄÇëÇó¶¼Í¨¹ýmWindowSessionÀ´½øÐÐ¡£
-	¾ÙÀýÀ´Ëµ£ºViewRootImplÒªÌí¼Ó´°¿Ú£¬¾ÍÊ¹ÓÃmWindowSession´úÀí¶ÔÏóµÄaddToDisplay·½·¨µ÷ÓÃµ½Ô¶¶ËSession¶ÔÏóµÄaddToDisplay·½·¨
+    有了这个Session代理对象之后，应用程序进程就可以在启动Activity组件的时候，调用它的成员函数add来将与该Activity组件所关联的一个W对象传递给WindowManagerService服务，
+    后者于是就会得到一个W代理对象，并且会以这个W代理对象来创建一个WindowState对象，即将这个W代理对象保存在新创建的WindowState对象的成员变量mClient中。
+    这个WindowState对象的其余成员变量的描述可以参考前面Android应用程序窗口（Activity）实现框架简要介绍和学习计划一文的图7，这里不再详述。
 
-	
+
     */
     final IWindowSession mWindowSession;
     final Display mDisplay;
@@ -392,7 +390,10 @@ public final class ViewRootImpl implements ViewParent,
         int localValue;
         int localChanges;
     }
-
+    /*wwxx wms study part5 二.2、
+    ViewRoot类的构造函数是通过调用静态成员函数 getWindowSession 来请求WindowManagerService服务为应用程序进程创建一个返回一个类型为Session的Binder本地对象的，
+    因此，接下来我们就继续分析ViewRoot类的静态成员函数 getWindowSession 的实现。
+    */
     public ViewRootImpl(Context context, Display display) {
         mContext = context;
         //´´½¨ÁËWindowSession¶ÔÏó
@@ -515,6 +516,20 @@ public final class ViewRootImpl implements ViewParent,
        2. 调用 ViewRootimpl 类的静态成员变量 mWindowSession 所描述的一个类型为Session的Binder代理对象的成员函数add来请求WindowManagerService增加一个WindowState对象，
        以便可以用来描述当前正在处理的一个 ViewRootimpl 所关联的一个应用程序窗口。
 
+
+    wwxx wms study part5 三.1
+
+    这里的参数 view 即为正在启动的Activity组件的视图对象，ViewRootimpl类的成员函数setView会将它保存成员变量 mView 中，这样就可以将一个Activity组件的视图对象和一个ViewRoot对象关联起来。
+    ViewRoot类的成员函数setView接下来还会调用静态成员变量 mWindowSession 所描述的一个实现了IWindowSession接口的Binder代理对象的成员函数
+    addToDisplay 来请求WindowManagerService服务为正在启动的Activity组件创建一个WindowState对象。
+    接下来我们就主要关注WindowState对象的创建过程，ViewRoot类的成员函数setView的详细实现可以参考前面Android应用程序窗口（Activity）的视图对象（View）的创建过程分析一文的Step 13。
+
+    注意，ViewRootimpl类的成员函数setView在请求WindowManagerService服务为正在启动的Activity组件创建一个WindowState对象的时候，
+    会传递一个类型为W的Binder本地对象给WindowManagerService服务。这个类型为W的Binder本地对象实现了IWindow接口，保存在ViewRootimpl类的成员变量mWindow中，
+    它是在ViewRoot类的构造函数中创建的，以后WindowManagerService服务就会通过它来和Activity组件通信。
+
+    从前面第二部的内容可以知道，ViewRoot类的静态成员变量mWindowSession所指向的一个Binder代理对象引用的是运行在WindowManagerService服务这一侧的一个Session对象，
+    因此，接下来我们就继续分析Session类的成员函数 addToDisplay 的实现，以便可以了解一个WindowState对象的创建过程。
     */
     public void setView(View view, WindowManager.LayoutParams attrs, View panelParentView) {
         synchronized (this) {
@@ -6380,7 +6395,119 @@ public final class ViewRootImpl implements ViewParent,
             ((RootViewSurfaceTaker)mView).setSurfaceKeepScreenOn(screenOn);
         }
     }
+    /*wwxx wms study part5
 
+    W类实现了 IWindow 接口，它的类实例是一个Binder本地对象。从前面Android应用程序窗口（Activity）的视图对象（View）的创建过程分析一文可以知道，
+    一个Activity组件在启动的过程中，会创建一个关联的 ViewRootimpl 对象，用来配合WindowManagerService服务来管理该Activity组件的窗口状态。
+    在这个 ViewRootimpl 对象内部，有一个类型为W的成员变量 mWindow ，它是在 ViewRootimpl 对象的创建过程中创建的。
+    
+    我们再来看W类的作用。W类实现了IWindow接口，因此，WindowManagerService服务就可以通过它在内部所创建的WindowState对象的成员变量 mClient 
+    来要求运行在应用程序进程这一侧的Activity组件来配合管理窗口的状态，
+    例如：
+        1. 当一个Activity组件的窗口的大小发生改变后，WindowManagerService服务就会调用这个IWindow接口的成员函数 resized 来通知该Activity组件，它的大小发生改变了。
+
+        2. 当一个Activity组件的窗口的可见性之后，WindowManagerService服务就会调用这个IWindow接口的成员函数 dispatchAppVisibility 来通知该Activity组件，它的可见性发生改变了。
+
+        3. 当一个Activity组件的窗口获得或者失去焦点之后，WindowManagerService服务就会调用这个IWindow接口的成员函数 windowFoucusChanged 来通知该Activity组件，它的焦点发生改变了。
+
+        理解了Activity组件在应用程序进程和WindowManagerService服务之间的连接模型之后，接下来我们再通过简要分析Activity组件在WindowManagerService服务和ActivityManagerService服务之间的连接。
+
+
+    
+     Activity组件在WindowManagerService服务和ActivityManagerService服务之间的连接是通过一个AppWindowToken对象来描述的。
+
+    每一个Activity组件在启动的时候，ActivityManagerService服务都会内部为该Activity组件创建一个 ActivityRecord 对象，
+    并且会以这个ActivityRecord对象所实现的一个 IApplicationToken 接口为参数，请求WindowManagerService服务为该Activity组件创建一个AppWindowToken对象，
+    即将这个IApplicationToken接口保存在新创建的AppWindowToken对象的成员变量 appToken 中。同时，这个ActivityRecord对象还会传递给它所描述的Activity组件所运行在应用程序进程，
+    于是，应用程序进程就可以在启动完成该Activity组件之后，将这个ActivityRecord对象以及一个对应的W对象传递给WindowManagerService服务，后者接着就会做两件事情：  
+
+    1. 根据获得的ActivityRecord对象的IApplicationToken接口来找到与之对应的一个AppWindowToken对象；
+
+    2. 根据获得的AppWindowToken对象以及前面传递过来的W代理对象来为正在启动的Activity组件创建一个WindowState对象，并且将该AppWindowToken对象保存在新创建的WindowState对象的成员变量mAppToken中。
+
+    顺便提一下，AppWindowToken类是从WindowToken类继续下来的。WindowToken类也是用来标志一个窗口的，不过这个窗口类型除了是应用程序窗口，即Activity组件窗口之外，还可以是其它的，
+    例如，输入法窗口或者壁纸窗口类型等，而AppWindowToken类只是用来描述Activity组件窗口。
+    当WindowToken类是用来描述Activity组件窗口的时候，它的成员变量token指向的就是用来描述该Activity组件的一个ActivityRecord对象所实现的一个IBinder接口，
+    而成员变量appWindowToken指向的就是其子类AppWindowToken对象。当另一方面，当WindowToken类是用来描述非Activity组件窗口的时候，它的成员变量appWindowToken的值就会等于null。这样，
+    我们就可以通过WindowToken类的成员变量appWindowToken的值来判断一个WindowToken对象是否是用来描述一个Activity组件窗口的，即是否是用来描述一个应用程序窗口的。
+
+    上面所描述的Activity组件在ActivityManagerService服务和WindowManagerService服务之间以及应用程序进程和WindowManagerService服务之间的连接模型比较抽象，
+    接下来，我们再通过三个过程来分析它们彼此之间的连接模型，如下所示：
+
+       1. ActivityManagerService服务请求WindowManagerService服务为一个Activity组件创建一个AppWindowToken对象的过程；
+
+       2. 应用程序进程请求WindowManagerService服务创建一个Session对象的过程；
+
+       3. 应用程序进程请求WindowManagerService服务为一个Activity组件创建一个WindowState对象的过程。
+
+    通过这三个过程的分析，我们就可以对应用程序进程、ActivityManagerService服务和WindowManagerService服务的关系有一个深刻的认识了。
+
+
+
+    一. AppWindowToken对象的创建过程
+
+    从前面Android应用程序启动过程源代码分析一文的Step 9可以知道，Activity组件在启动的过程中，会调用到ActivityStack类的成员函数startActivityLocked，
+    该函数会请求WindowManagerService服务为当前正在启动的Activity组件创建一个AppWindowToken对象。
+    接下来，我们就从ActivityStack类的成员函数startActivityLocked开始分析一个AppWindowToken对象的创建过程.
+
+        Step 1. ActivityStack.startActivityLocked
+             这个函数定义在文件frameworks/base/services/java/com/android/server/am/ActivityStack.java中。
+        Step 2. WindowManagerService.addAppToken
+            这个函数定义在文件frameworks/base/services/java/com/android/server/WindowManagerService.java中。
+        Step 3. new AppWindowToken
+            这个函数定义在文件frameworks/base/services/java/com/android/server/WindowManagerService.java中。
+
+
+    二. Session对象的创建过程
+    
+    应用程序进程在启动第一个 Activity 组件的时候，就会请求与WindowManagerService服务建立一个连接，以便可以配合WindowManagerService服务来管理系统中的所有窗口。
+    具体来说，就是应用程序进程在为它里面启动的第一个Activity组件的视图对象创建一个关联的ViewRoot对象的时候，
+    就会向WindowManagerService服务请求返回一个类型为Session的Binder本地对象，这样应用程序进程就可以获得一个类型为Session的Binder代理对象，
+    以后就可以通过这个Binder代理对象来和WindowManagerService服务进行通信了。
+
+    从前面Android应用程序窗口（Activity）的视图对象（View）的创建过程分析一文可以知道，
+    应用程序进程在为它里面启动的Activity组件的视图对象创建关联ViewRoot对象是通过调用WindowManagerImpl类的成员函数addView来实现的，
+    因此，接下来我们就从WindowManagerImpl类的成员函数addView开始分析应用程序进程与WindowManagerService服务的连接过程，即一个Session对象的创建过程
+     Step 1. WindowManagerImpl.addView
+        这个函数定义在文件frameworks/base/core/java/android/view/WindowManagerImpl.java中。
+    Step 2. new ViewRoot
+        这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java文件中。
+    Step 3. ViewRoot.getWindowSession
+        这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java文件中。
+    Step 4. WindowManagerService.openSession
+         这个函数定义在文件frameworks/base/services/java/com/android/server/WindowManagerService.java中。   
+    Step 5. new Session
+        这个函数定义在文件frameworks/base/services/java/com/android/server/WindowManagerService.java中。
+
+
+    三. WindowState对象的创建过程
+    在Android系统中，WindowManagerService服务负责统一管理系统中的所有窗口，因此，当运行在应用程序进程这一侧的Activity组件在启动完成之后，
+    需要与WindowManagerService服务建立一个连接，以便WindowManagerService服务可以管理它的窗口。具体来说，
+    就是应用程序进程将一个Activitty组件的视图对象设置到与它所关联的一个ViewRoot对象的内部的时候，就会将一个实现了IWindow接口的Binder本地对象传递WindowManagerService服务。
+    这个实现了IWindow接口的Binder本地对象唯一地标识了一个Activity组件，WindowManagerService服务接收到了这个Binder本地对象之后，就会将它保存在一个新创建的WindowState对象的内部，
+    这样WindowManagerService服务以后就可以通过它来和Activity组件通信，以便可以要求Activity组件配合来管理系系统中的所有窗口。
+
+    从前面Android应用程序窗口（Activity）的视图对象（View）的创建过程分析一文可以知道，
+    应用程序进程将一个Activity组件的视图对象设置到与它所关联的一个ViewRoot对象的内部是通过调用ViewRoot类的成员函数setView来实现的，
+    因此，接下来我们就从ViewRootimpl类的成员函数setView开始分析Activity组件与WindowManagerService服务的连接过程，即一个WindowState对象的创建过程，
+    这个过程可以分为7个步骤，接下来我们就详细分析每一个步骤。
+    Step 1. ViewRootimpl.setView
+        这个函数定义在文件frameworks/base/core/java/android/view/ViewRootimpl.java文件中。
+    Step 2. Session.addToDisplay
+        这个函数定义在文件frameworks/base/services/java/com/android/server/Session.java中。
+     Step 3. WindowManagerService.addWindow
+        这个函数定义在文件frameworks/base/services/java/com/android/server/WindowManagerService.java中
+     Step 4. new WindowState
+        这个函数定义在文件frameworks/base/services/java/com/android/server/WindowState.java中
+    Step 5. WindowState.attach
+        这个函数定义在文件frameworks/base/services/java/com/android/server/WindowState.java中。
+     Step 6. Session.windowAddedLocked
+        这个函数定义在文件frameworks/base/services/java/com/android/server/Session.java中
+      Step 7. new SurfaceSession
+        这个函数定义在文件frameworks/base/core/java/android/view/SurfaceSession.java中。
+
+
+    */
     static class W extends IWindow.Stub {
         private final WeakReference<ViewRootImpl> mViewAncestor;
         private final IWindowSession mWindowSession;

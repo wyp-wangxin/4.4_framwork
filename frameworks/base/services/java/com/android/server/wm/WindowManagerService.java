@@ -2398,6 +2398,15 @@ wwxx
                 }
             }
 			//３、创建窗口对象
+            /*wwxx wms study part5 三.3、
+            通过上面的合法性检查之后，这里就可以为正在增加的窗口创建一个WindowState对象了。
+            WindowManagerService类的成员变量mPolicy指向的是一个实现了WindowManagerPolicy接口的窗口管理策略器。
+            在Phone平台中，这个窗口管理策略器是由com.android.internal.policy.impl.PhoneWindowManager来实现的，
+            它负责对系统中的窗口实现制定一些规则。这里主要是调用窗口管理策略器的成员函数adjustWindowParamsLw来调整当前正在增加的窗口的布局参数，
+            以及调用成员函数 prepareAddWindowLw 来检查当前应用程序进程请求增加的窗口是否是合法的。
+
+            如果不是合法的，即变量res的值不等于WindowManagerImpl.ADD_OKAY，那么函数就不会继续向前执行，而直接返回错误码res。
+            */
             win = new WindowState(this, session, client, token,
                     attachedWindow, appOp[0], seq, attrs, viewVisibility, displayContent);
             if (win.mDeathRecipient == null) {
@@ -2432,6 +2441,15 @@ wwxx
 
             origId = Binder.clearCallingIdentity();
 			//6、调用窗口的attach，初始化Surface相关的变量,将窗口win放到mWindowMap中
+            /*wwxx wms study part5 三.3、
+            这段代码首先检查变量addToken的值是否等于true。如果等于true的话，那么就说明变量token所指向的一个WindowToken对象是在前面新创建的。
+            在这种情况下，就需要将这个新创建的WindowToken对象分别添加到WindowManagerService类的成员变量mTokeMap和mTokenList分别描述的一个HashMap中去。
+
+            这段代码接下来再调用前面所创建的一个WindowState对象win的成员函数 attach 来为当前正在增加的窗口创建一个用来连接到 SurfaceFlinger 服务的 SurfaceSession 对象。
+            有了这个 SurfaceSession 对象之后，当前正在增加的窗口就可以和 SurfaceFlinger 服务通信了。
+
+            
+            */
             if (addToken) {
                 mTokenMap.put(attrs.token, token);
             }
@@ -7924,7 +7942,13 @@ addWindowToken()这个函数告诉我们，WindowToken其实有两层含义：
     // -------------------------------------------------------------
     // IWindowManager API
     // -------------------------------------------------------------
+    /*wwxx wms study part5 二.4、
+    
+    WindowManagerService类的成员函数openSession的实现很简单，它以应用程序进程传递过来的一个输入法客户端对象和一个输入法上下文对象来参数，
+    来创建一个类型为Session的Binder本地对象，并且将这个类型为Session的Binder本地对象返回给应用程序进程。
 
+    接下来我们就继续分析Session类的构造函数的实现，以便可以了解一个Session对象的创建过程。
+    */
     @Override
     public IWindowSession openSession(IInputMethodClient client,
             IInputContext inputContext) {

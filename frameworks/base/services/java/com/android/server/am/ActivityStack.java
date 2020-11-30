@@ -1767,7 +1767,16 @@ resumeTopActivitiesLocked()是 AMS中很多地方都会调用的方法，主要�
         }
         mTaskHistory.add(stackNdx, task);
     }
+    /*wwxx wms study part5 一.1、
 
+    参数r是一个ActivityRecord对象，用来描述的是要启动的Activity组件，参数 newTask 是一个布尔变量，用来描述要启动的Activity组件是否是在新任务中启动的，
+    参数 doResum e也是一个布尔变量，用来描述是否需要马上将Activity组件启动起来。
+
+    无论如何，ActivityStack类的成员函数startActivityLocked都会调用WindowManagerService服务的成员函数 addAppToken 为正在启动的Activity组件创建一个AppWindowToken对象。
+    创建完成这个AppWindowToken对象之后，如果参数doResume的值等于true，那么ActivityStack类的成员函数startActivityLocked就会继续调用另外一个成员函数 resumeTopActivitiesLocked 
+    来继续执行启动参数r所描述的一个Activity组件，这一步可以参考前面Android应用程序启动过程源代码分析一文的Step 10。
+
+    */
     final void startActivityLocked(ActivityRecord r, boolean newTask,
             boolean doResume, boolean keepCurTransition, Bundle options) {
         TaskRecord rTask = r.task;

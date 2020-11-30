@@ -51,6 +51,24 @@ import java.io.PrintWriter;
  * This class represents an active client session.  There is generally one
  * Session object per process that is interacting with the window manager.
  */
+/*wwxx wms study part5
+
+ Session 类的描述同样可以参考前面Android应用程序窗口（Activity）实现框架简要介绍和学习计划一文，这里我们主要描述一下它的作用。
+ Session类实现了IWindowSession接口，因此，应用程序进程就可以通过保存在 ViewRootimpl 类的静态成员变量 mWindowSession 
+ 所描述的一个Session代理对象所实现的IWindowSession接口来与WindowManagerService服务通信，例如：
+
+ 1. 在Activity组件的启动过程中，调用这个IWindowSession接口的成员函数add可以将一个关联的W对象传递到WindowManagerService服务，
+    以便WindowManagerService服务可以为该Activity组件创建一个WindowState对象。
+
+ 2. 在Activity组件的销毁过程中，调用这个这个IWindowSession接口的成员函数remove来请求WindowManagerService服务之前为该Activity组件所创建的一个WindowState对象，
+    这一点可以参考前面Android应用程序键盘（Keyboard）消息处理机制分析一文的键盘消息接收通道注销过程分析。
+
+ 3. 在Activity组件的运行过程中，调用这个这个IWindowSession接口的成员函数relayout来请求WindowManagerService服务来对该Activity组件的UI进行布局，以便该Activity组件的UI可以正确地显示在屏幕中。
+
+
+
+*/
+
 final class Session extends IWindowSession.Stub
         implements IBinder.DeathRecipient {
     final WindowManagerService mService;
@@ -62,7 +80,20 @@ final class Session extends IWindowSession.Stub
     SurfaceSession mSurfaceSession;
     int mNumWindow = 0;
     boolean mClientDead = false;
+    /*
+    Session类有两个成员变量 mClient 和 mInputContext ，分别用来保存在从应用程序进程传递过来的一个输入法客户端对象和一个输入法上下文对象，它们是在Session类的构造函数中初始化的。
 
+    Session类的构造函数还会检查WindowManagerService服务是否需要获得系统中的输入法管理器服务，即检查WindowManagerService类的成员变量 mHaveInputMethods 的值是否等于true。
+    如果这个值等于true，并且WindowManagerService服务还没有获得系统中的输入法管理器服务，即WindowManagerService类的成员变量 mInputMethodManager 的值等于null，
+    那么Session类的构造函数就会首先获得这个输入法管理器服务，并且保存在WindowManagerService类的成员变量 mInputMethodManager 中。
+
+    获得了系统中的输入法管理器服务之后，Session类的构造函数就可以调用它的成员函数 addClient 来为正在请求与WindowManagerService服务建立连接的应用程序进程增加它所使用的输入法客户端对象和输入法上下文对象了。
+
+    至此，我们就分析完成一个Session对象的创建过程了，通过这个过程我们就可以知道，每一个应用程序进程在WindowManagerService服务内部都有一个类型为Session的Binder本地对象，
+    用来它与WindowManagerService服务之间的连接，而有了这个连接之后，WindowManagerService服务就可以请求应用进程配合管理系统中的应用程序窗口了。
+
+
+    */
     public Session(WindowManagerService service, IInputMethodClient client,
             IInputContext inputContext) {
         mService = service;
@@ -154,7 +185,11 @@ final class Session extends IWindowSession.Stub
         return addToDisplay(window, seq, attrs, viewVisibility, Display.DEFAULT_DISPLAY,
                 outContentInsets, outInputChannel);
     }
+    /*wwxx wms study part5 三.2
 
+    Session类的成员函数addToDisplay的实现很简单，它只是调用了外部类WindowManagerService的成员函数addWindow来进一步为正在启动的Activity组件创建一个WindowState对象。
+
+    */
     @Override
     public int addToDisplay(IWindow window, int seq, WindowManager.LayoutParams attrs,
             int viewVisibility, int displayId, Rect outContentInsets,
@@ -180,7 +215,7 @@ final class Session extends IWindowSession.Stub
     public void remove(IWindow window) {
         mService.removeWindow(this, window);
     }
-    /*wwxx Step 3
+    /*wwxx 
     Session类的成员函数relayout的实现很简单，它只是调用了WindowManagerService类的成员函数relayoutWindow来进一步计算参数window所描述的一个Activity窗品的大小，
     接下来我们就继续分析WindowManagerService类的成员函数relayoutWindow的实现。去看看。
     */
@@ -454,7 +489,24 @@ final class Session extends IWindowSession.Stub
     public IWindowId getWindowId(IBinder window) {
         return mService.getWindowId(window);
     }
+    /*wwxx wms study part5 三.6、
+    Session类的成员变量 mSurfaceSession 指向的是一个 SurfaceSession 对象，
+    这个SurfaceSession对象是WindowManagerService服务用来与SurfaceSession服务建立连接的。
+    Session类的成员函数 windowAddedLocked 首先检查这个成员变量的值是否等于null。如果等于null的话，
+    那么就说明WindowManagerService服务尚未为当前正在请求增加窗口的应用程序进程创建一个用来连接SurfaceSession服务的SurfaceSession对象，
+    因此，Session类的成员函数 windowAddedLocked 就会创建一个 SurfaceSession 对象，并且保存在成员变量mSurfaceSession中，
+    并且将正在处理的Session对象添加WindowManagerService类的成员变量 mSession 所描述的一个HashSet中去，
+    表示WindowManagerService服务又多了一个激活的应用程序进程连接。
 
+    Session 类的另外一个成员变量 mNumWindow 是一个整型变量，用来描述当前正在处理的Session对象内部包含有多少个窗口，
+    即运行在引用了当前正在处理的Session对象的应用程序进程的内部的窗口的数量。
+    每当运行在应用程序进程中的窗口销毁时，该应用程序进程就会通知WindowManagerService服务移除用来描述该窗口状态的一个WindowState对象，
+    并且通知它所引用的Session对象减少其成员变量mNumWindow的值。当一个Session对象的成员变量mNumWindow的值减少为0时，
+    就说明该Session对象所描述的应用程序进程连接已经不需要了，
+    因此，该Session对象就可以杀掉其成员变量 mSurfaceSession 所描述的一个SurfaceSession对象，以便可以断开和SurfaceSession服务的连接。
+
+    接下来，我们就继续分析SurfaceSession类的构造函数的实现，以便可以了解一个SurfaceSession对象是如何与SurfaceSession服务建立连接的。
+    */
     void windowAddedLocked() {
         if (mSurfaceSession == null) {
             if (WindowManagerService.localLOGV) Slog.v(

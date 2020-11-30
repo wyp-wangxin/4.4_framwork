@@ -38,7 +38,27 @@ sp<SurfaceComposerClient> android_view_SurfaceSession_getClient(
             env->GetIntField(surfaceSessionObj, gSurfaceSessionClassInfo.mNativeClient));
 }
 
+/*wwxx wms study part5 三.7、
+它首先创建一个 SurfaceComposerClient 对象client，接着再增加这个SurfaceComposerClient对象的强引用计数，
+因为再接下来会将这个SurfaceComposerClient对象的地址值保存在参数clazz所描述的一个SurfaceSession对象的成员变量mClient中，
+这相当于是参数clazz所描述的一个SurfaceSession对象引用了刚才所创建的SurfaceComposerClient对象client。
 
+在前面Android应用程序与SurfaceFlinger服务的关系概述和学习计划这一系列的文章中，我们已经分析过SurfaceComposerClient类的作用了，
+这主要就是用来在应用程序进程和SurfaceFlinger服务之间建立连接的，以便应用程序进程可以为运行在它里面的应用程序窗口请求SurfaceComposerClient创建绘制表面（Surface）的操作等。
+
+这样，每一个Java层的SurfaceSession对象在C++层就都有一个对应的SurfaceComposerClient对象，因此，Java层的应用程序就可以通过SurfaceSession类来和SurfaceFlinger服务建立连接。
+
+至此，我们就分析完成一个WindowState对象的创建过程了，通过这个过程我们就可以知道，每一个Activity组件窗口在WindowManagerService服务内部都有一个对应的WindowState对象，用来描述它的窗口状态。
+
+
+至此，我们也分析完成Android应用程序窗口与WindowManagerService服务的连接过程了。
+从这个连接过程以及前面Android应用程序窗口（Activity）的窗口对象（Window）的创建过程分析和Android应用程序窗口（Activity）的视图对象（View）的创建过程分析这两篇文章，
+我们就可以知道，为了实现一个Activity组件的UI，无论是应用程序进程，还是WindowManagerService，都做了大量的工作，
+例如，应用程序进程为它创建一个窗口（Window）对象、一个视图（View）对象、一个ViewRoot对象、一个W对象，
+WindowManagerService服务为它创建一个 AppWindowToken 对象和一个 WindowState 对象。
+此外，WindowManagerService服务还为一个Activity组件所运行在的应用程序进程创建了一个 Session 对象。
+理解这些对象的实现以及作用对我们了解Android应用程序窗口的实现框架以及WindowManagerService服务的实现原理都是非常重要的。
+*/
 static jint nativeCreate(JNIEnv* env, jclass clazz) {
     SurfaceComposerClient* client = new SurfaceComposerClient();
     client->incStrong((void*)nativeCreate);

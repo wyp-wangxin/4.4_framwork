@@ -31,6 +31,10 @@ public final class SurfaceSession {
     private static native void nativeKill(int ptr);
 
     /** Create a new connection with the surface flinger. */
+    /*wwxx wms study part5 三.7、
+    SurfaceSession类的构造函数的实现很简单，它只是调用了另外一个成员函数init来执行一些初始化操作，其实就是用来初始化SurfaceSession类的成员变量 mNativeClient 。
+    nativeCreate 定义在 frameworks\base\core\jni\android_view_SurfaceSession.cpp 去看看。
+    */
     public SurfaceSession() {
         mNativeClient = nativeCreate();
     }

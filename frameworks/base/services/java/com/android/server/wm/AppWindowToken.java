@@ -116,7 +116,20 @@ class AppWindowToken extends WindowToken {
 
     // Input application handle used by the input dispatcher.
     final InputApplicationHandle mInputApplicationHandle;
+    /*wwxx wms study part5 一.3、
+    AppWindowToken类的构造函数首先调用父类 WindowToken 的构造函数来执行父类的初始化工作，然后从父类WindowToken继承下来的成员变量appWindowToken以及自己的成员变量appToken的值。
+    参数 _token 指向的是一个ActivityRecord对象的IBinder接口，因此，AppWindowToken类的成员变量appToken描述的就是一个ActivityRecord对象。
 
+    WindowToken类的构造函数用来初始化 token 、windowType 和 explicit 这三个成员变量。在我们这个场景中，成员变量token指向的也是一个ActivityRecord对象的IBinder接口，
+    用来标志一个Activity组件的窗口，成员变量 windowType 用来描述窗口的类型，它的值等于WindowManager.LayoutParams.TYPE_APPLICATION，表示这是一个Activity组件窗口，
+    成员变量explicit用来表示窗口是否是由应用程序进程请求添加的。
+
+    注意，当一个WindowToken对象的成员变量appWindowToken的值不等于null时，就表示它实际描述的是Activity组件窗口，并且这个成员变量指向的就是与该Activity组件所关联的一个AppWindowToken对象。
+
+    至此，我们就分析完成一个 AppWindowToken 对象的创建过程了，通过这个过程我们就可以知道，每一个Activity组件，在ActivityManagerService服务内部都有一个对应的ActivityRecord对象，
+    并且在WindowManagerService服务内部关联有一个AppWindowToken对象。
+
+    */
     AppWindowToken(WindowManagerService _service, IApplicationToken _token) {
         super(_service, _token.asBinder(),
                 WindowManager.LayoutParams.TYPE_APPLICATION, true);

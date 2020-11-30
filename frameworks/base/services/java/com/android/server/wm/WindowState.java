@@ -313,7 +313,22 @@ final class WindowState implements WindowManagerPolicy.WindowState {
     /** When true this window is at the top of the screen and should be layed out to extend under
      * the status bar */
     boolean mUnderStatusBar = true;
+    /*wwxx wms study part5 三.4、
+    它的实现比较长，我们分段来阅读：
+    这段代码初始化WindowState类的以下六个成员变量：
+        mSession ：指向一个类型为Session的Binder本地对象，使用参数s来初始化，表示当前所创建的WindowState对象是属于哪一个应用程序进程的。
 
+        mClient ：指向一个实现了IWindow接口的Binder代理对象，它引用了运行在应用程序进程这一侧的一个类型为W的Binder本地对象，使用参数c来初始化，
+                  通过它可以与运行在应用程序进程这一侧的Activity组件进行通信。
+
+        mToken ：指向一个WindowToken对象，使用参数token来初始化，通过它就可以知道唯一地标识一个窗口。
+
+        mAttrs ：指向一个WindowManager.LayoutParams对象，使用参数a来初始化，通过它就可以知道当前当前所创建的WindowState对象所描述的窗口的布局参数。
+
+        mViewVisibility ：这是一个整型变量，使用参数viewVisibility来初始化，表示当前所创建的WindowState对象所描述的窗口视图的可见性。
+
+        mAlpha ：这是一个浮点数，使用参数a所描述的一WindowManager.LayoutParams对象的成员变量alpha来初始化，表示当前所创建的WindowState对象所描述的窗口的Alpha通道。
+    */
     WindowState(WindowManagerService service, Session s, IWindow c, WindowToken token,
            WindowState attachedWindow, int appOp, int seq, WindowManager.LayoutParams a,
            int viewVisibility, final DisplayContent displayContent) {
@@ -348,6 +363,14 @@ final class WindowState implements WindowManagerPolicy.WindowState {
         if (WindowManagerService.localLOGV) Slog.v(
             TAG, "Window " + this + " client=" + c.asBinder()
             + " token=" + token + " (" + mAttrs.token + ")" + " params=" + a);
+
+        /*wwxx wms study part5 三.4、
+        此外，这段代码还创建了一个类型为DeathRecipient的死亡通知接收者deathRecipient，它是用来监控参数c所引用的一个类型为W的Binder本地对象的生命周期的。
+        当这个Binder本地对象死亡的时候，就意味着当前所创建的WindowState对象所描述的窗口所在的应用程序进程已经退出了。
+        接下来的这段代码就是用来注册死亡通知接收者deathRecipient的
+
+        注册完成之后，前面所创建的死亡通知接收者deathRecipient就会保存在WindowState类的成员变量 mDeathRecipient 。
+        */
         try {
             c.asBinder().linkToDeath(deathRecipient, 0);
         } catch (RemoteException e) {
@@ -365,6 +388,32 @@ final class WindowState implements WindowManagerPolicy.WindowState {
         }
         mDeathRecipient = deathRecipient;
 
+        /*wwxx wms study part5 三.4、
+
+        这段代码初始化WindowState类的以下七个成员变量：
+        mBaseLayer ：这是一个整型变量，用来描述一个窗口的基础Z轴位置值，这个值是与窗口类型相关的。对于子窗口来说，
+                     它的值由父窗口的基础Z轴位置值乘以常量TYPE_LAYER_MULTIPLIER再加固定偏移量TYPE_LAYER_OFFSET得到；对于非子窗口来说，
+                     它的值就是由窗口的类型来决定的。一个窗口的基础Z轴位置值是通过调用WindowManagerService类的成员变量 mPolicy 所描述的一个窗口管理策略器的成员函数windowTypeToLayerLw来获得的，
+                     而窗口管理策略器的成员函数windowTypeToLayerLw主要是根据窗口的类型来决定它的基础Z轴位置值的。
+
+        mSubLayer ：这是一个整型变量，用来描述一个子窗口相对其父窗口的Z轴偏移值。对于非子窗口来说，这个值固定为0；
+                    对于子窗口来说，这个值是由WindowManagerService类的成员变量mPolicy所描述的一个窗口管理策略器的成员函数subWindowTypeToLayerLw来获得的，
+                    而窗口管理策略器的成员函数subWindowTypeToLayerLw主要是根据子窗口的类型来决定它相对其父窗口的Z轴偏移值的。
+
+        mAttachedWindow ：指向一个WindowState对象，用来描述一个子窗口的父窗口。对于非子窗口来说，这个值固定为null；对于子窗口来说， 
+                          这个值使用参数attachedWindow来初始化。如果当前所创建的WindowState对象所描述的窗口是一个子窗口，
+                          那么这个子窗口还会被添加用来描述它的父窗口的一WindowState对象的成员变量mChildWindows所描述的一个子窗口列表中去。
+
+        mLayoutAttached ：这是一个布尔变量，用来描述一个子窗口的视图是否是嵌入在父窗口的视图里面的。
+                          对于非子窗口来说，这个值固定为false；对于子窗口来说，这个值只有子窗口的类型是非对话框时，它的值才会等于true，否则都等于false。
+
+        mIsImWindow ：这是一个布尔变量，表示当前所创建的WindowState对象所描述的窗口是否是一个输入法窗口或者一个输入法对话框。
+
+        mIsWallpaper  ：这是一个布尔变量，表示当前所创建的WindowState对象所描述的窗口是否是一个壁纸窗口。
+
+        mIsFloatingLayer  ：这是一个布尔变量，表示当前所创建的WindowState对象所描述的窗口是否是一个浮动窗口。当一个窗口是一个输入法窗口、输入法对话框口或者壁纸窗口时，它才是一个浮动窗口。
+
+        */
         if ((mAttrs.type >= FIRST_SUB_WINDOW &&
                 mAttrs.type <= LAST_SUB_WINDOW)) {
             // The multiplier here is to reserve space for multiple
@@ -421,7 +470,20 @@ final class WindowState implements WindowManagerPolicy.WindowState {
             mIsWallpaper = mAttrs.type == TYPE_WALLPAPER;
             mIsFloatingLayer = mIsImWindow || mIsWallpaper;
         }
+        /*wwxx wms study part5 三.4、
+        这段代码主要用来初始化成员变量mRootToken和mAppToken。
+        成员变量mRootToken的类型为WindowToken，用来描述当前所创建的WindowState对象所描述的窗口的根窗口。
+        如果当前所创建的WindowState对象所描述的窗口是一个子窗口，那么就先找到它的父窗口，然后再找到它的父窗口所属的应用程序窗口，即Activity组件窗口，
+        这时候找到的Activity组件窗口就是一个根窗口。如果当前所创建的WindowState对象所描述的窗口是一个子窗口，但是它不属于任何一个应用程序窗口的，
+        那么它的父窗口就是一个根窗口。如果当前所创建的WindowState对象所描述的窗口不是一个子窗口，并且它也不属于一个应用程序窗口的，那么它本身就是一个根窗口。
 
+        成员变量mAppToken的类型为AppWindowToken，只有当成员变量mRootToken所描述的一个根窗口是一个应用程序窗口时，它的值才不等于null。
+
+        至此，我们就分析完成WindowState的构造函数的实现了，返回到前面的Step 3中，即WindowManagerService类的成员函数addWindow中，
+        接下来就会继续调用前面所创建的一个WindowState对象的成员函数 attach 来创建一个关联的SurfaceSession对象，以便可以用来和SurfaceFlinger服务通信。
+
+
+        */
         WindowState appWin = this;
         while (appWin.mAttachedWindow != null) {
             appWin = appWin.mAttachedWindow;
@@ -451,7 +513,13 @@ final class WindowState implements WindowManagerPolicy.WindowState {
                 mAppToken != null ? mAppToken.mInputApplicationHandle : null, this,
                 displayContent.getDisplayId());
     }
+    /*wwxx wms study part5 三.5、
+    
+    WindowState类的成员变量 mSession 指向的是一个Session对象，这个Session对象就是用来连接应用程序进程和WindowManagerService服务，
+    WindowState 类的成员函数attach调用它的成员函数 windowAddedLocked 来检查是否需要为当前正在请求增加窗口的应用程序进程创建一个SurfaceSession对象。
 
+    接下来，我们继续分析Session类的成员函数windowAddedLocked的实现。
+    */
     void attach() {
         if (WindowManagerService.localLOGV) Slog.v(
             TAG, "Attaching " + this + " token=" + mToken

@@ -142,14 +142,31 @@ public final class WindowManagerGlobal {
             return sWindowManagerService;
         }
     }
+    /*wwxx wms study part5 二.3、
+    
+   getWindowSession首先获得获得应用程序所使用的输入法管理器，接着再获得系统中的WindowManagerService服务的一个Binder代理对象。
+   有了这个Binder代理对象之后，就可以调用它的成员函数 openSession 来请求WindowManagerService服务返回一个类型为Session的Binder本地对象。
+   这个Binder本地对象返回来之后，就变成了一个类型为Session的Binder代理代象，即一个实现了IWindowSession接口的Binder代理代象，
+   并且保存在ViewRoot类的静态成员变量mWindowSession中。在请求WindowManagerService服务返回一个类型为Session的Binder本地对象的时候，
+   应用程序进程传递给WindowManagerService服务的参数有两个，一个是实现IInputMethodClient接口的输入法客户端对象，
+   另外一个是实现了IInputContext接口的一个输入法上下文对象，它们分别是通过调用前面所获得的一个输入法管理器的成员函数getClient和getInputContext来获得的。
 
+   从这里就可以看出，只有当ViewRoot类的静态成员函数 getWindowSession 第一次被调用的时候，应用程序进程才会请求WindowManagerService服务返回一个类型为Session的Binder本地对象。
+   又由于ViewRoot类的静态成员函数 getWindowSession 第一次被调用的时候，正好是处于应用程序进程中的第一个Activity组件启动的过程中，
+   因此，应用程序进程是在启动第一个Activity组件的时候，才会请求与WindowManagerService服务建立连接。一旦连接建立起来之后，ViewRootimpl类的静态成员变量 mInitialized 的值就会等于true，
+   并且另外一个成员变量 mWindowSession 的值不等于null。同时，ViewRootimpl类的静态成员函数getWindowSession是线程安全的，
+   这样就可以避免多个线程同时调用它来重复请求WindowManagerService服务为当前应用程序进程创建连接。
+
+   接下来，我们就继续分析求WindowManagerService类的成员函数 openSession 的实现，以便可以了解一个Session对象的创建过程。
+   
+    */
     public static IWindowSession getWindowSession() {
         synchronized (WindowManagerGlobal.class) {
             if (sWindowSession == null) {
                 try {
                     InputMethodManager imm = InputMethodManager.getInstance();
                     IWindowManager windowManager = getWindowManagerService();
-                    //wwxx µ÷ÓÃWMSµÄopenSession´´½¨Ò»¸öSession¶ÔÏó
+                    
                     sWindowSession = windowManager.openSession(
                             imm.getClient(), imm.getInputContext());
                     float animatorScale = windowManager.getAnimationScale(2);
@@ -195,6 +212,11 @@ public final class WindowManagerGlobal {
     最后还会将这个View对view象和这个WindowManager.LayoutParams对象，以及变量panelParentView所描述的一个父应用程序窗视图对象，
     保存在这个ViewRoot对象root的内部去，这是通过调用这个ViewRoot对象root的成员函数setView来实现的，因此，接下来我们就继续分析ViewRoot类的成员函数setView的实现。   
         这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java中。
+    
+
+    wwxx wms study part5 二.1、
+    这里的参数view即为正在启动的Activity组件的视图对象，WindowManagerImpl类的成员函数addView的目标就是为它创建一个ViewRoot对象。这里我们只关注这个ViewRoot对象的创建过程，
+    即ViewRoot类的构造函数的实现，WindowManagerImpl类的成员函数addView的详细实现可以参考前面Android应用程序窗口（Activity）的视图对象（View）的创建过程分析一文的Step 12。    
 
 
     */ 
