@@ -2972,6 +2972,46 @@ wwxx
       以便可以详细了解Activity窗口的大小计算过程。
 
       去看看这个函数 WindowManagerService.performLayoutAndPlaceSurfacesLocked 
+
+
+
+
+    wwxx wms study part6 6、
+
+    WindowManagerService类的成员函数relayoutWindow的实现是相当复杂的，这里我们只关注与创建应用程序窗口的绘图表面相关的代码，在后面的文章中，我们再详细分析它的实现。
+
+    简单来说，WindowManagerService类的成员函数relayoutWindow根据应用程序进程传递过来的一系列数据来重新设置由参数 client 所描述的一个应用程序窗口的大小和可见性等信息，
+    而当一个应用程序窗口的大小或者可见性发生变化之后，系统中当前获得焦点的窗口，以及输入法窗口和壁纸窗口等都可能会发生变化，而且也会对其它窗口产生影响，
+    因此，这时候WindowManagerService类的成员函数relayoutWindow就会对系统中的窗口的布局进行重新调整。
+    对系统中的窗口的布局进行重新调整的过程是整个WindowManagerService服务最为复杂和核心的内容，我们同样是在后面的文章中再详细分析。
+
+    现在，我们就主要分析参数client所描述的一个应用程序窗口的绘图表面的创建过程。
+
+    WindowManagerService类的成员函数relayoutWindow首先获得与参数client所对应的一个 WindowState 对象 win ，
+    这是通过调用WindowManagerService类的成员函数 windowForClientLocked 来实现的。如果这个对应的WindowState对象win不存在，
+    那么就说明应用程序进程所请求处理的应用程序窗口不存在，这时候WindowManagerService类的成员函数relayoutWindow就直接返回一个0值给应用程序进程。
+
+    WindowManagerService类的成员函数relayoutWindow接下来判断参数client所描述的一个应用程序窗口是否是可见的。
+    一个窗口只有在可见的情况下，WindowManagerService服务才会为它创建一个绘图表面。 一个窗口是否可见由以下两个条件决定：
+
+        1. 参数 viewVisibility 的值等于View.VISIBLE，表示应用程序进程请求将它设置为可见的。
+
+        2. WindowState对象win的成员变 量mAppToken 不等于null，并且它所描述的一个AppWindowToken对象的成员变量clientHidden的值等于false。
+           这意味着参数client所描述的窗口是一个应用程序窗口，即一个Activity组件窗口，并且这个Activity组件当前是处于可见状态的。
+           当一个Activity组件当前是处于不可见状态时，它的窗口就也必须是处于不可见状态。
+           WindowState类的成员变量mAppToken的具体描述可以参考前面Android应用程序窗口（Activity）与WindowManagerService服务的连接过程分析一文。
+
+    注意，当WindowState对象win的成员变量mAppToken等于null时，只要满足条件1就可以了，因为这时候参数client所描述的窗口不是一个Activity组件窗口，
+    它的可见性不像Activity组件窗口一样受到Activity组件的可见性影响。
+
+    我们假设参数client所描述的是一个应用程序窗口，并且这个应用程序窗口是可见的，
+    那么WindowManagerService类的成员函数relayoutWindow接下来就会调用WindowState对象win的成员函数 createSurfaceLocked 来为它创建一个绘图表面。
+    如果这个绘图表面能创建成功，那么WindowManagerService类的成员函数relayoutWindow就会将它的内容拷贝到输出参数 outSurface 所描述的一个Surface对象去，
+    以便可以将它返回给应用程序进程处理。另一方面，如果这个绘图表面不能创建成功，
+    那么WindowManagerService类的成员函数relayoutWindow就会将输出参数 outSurface 所描述的一个Surface对象的内容释放掉，
+    以便应用程序进程知道该Surface对象所描述的绘图表面已经失效了。
+
+    接下来，我们就继续分析WindowState类的成员函数 createSurfaceLocked 的实现，以便可以了解一个应用程序窗口的绘图表面的创建过程。
     */
     public int relayoutWindow(Session session, IWindow client, int seq,
             WindowManager.LayoutParams attrs, int requestedWidth,
@@ -3121,8 +3161,8 @@ wwxx
                     }
                     SurfaceControl surfaceControl = winAnimator.createSurfaceLocked();
                     if (surfaceControl != null) {
-                        outSurface.copyFrom(surfaceControl);
-                        if (SHOW_TRANSACTIONS) Slog.i(TAG,
+                        outSurface.copyFrom(surfaceControl);//wwxx wms study part6 9、 这一步很关键，通过copyFrom 把新创建的surfaceControl WMS 里面的 mSurface（outSurface) 。
+                        if (SHOW_TRANSACTIONS) Slog.i(TAG, 
                                 "  OUT SURFACE " + outSurface + ": copied");
                     } else {
                         // For some reason there isn't a surface.  Clear the

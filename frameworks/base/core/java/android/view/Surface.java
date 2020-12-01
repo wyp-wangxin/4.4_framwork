@@ -118,6 +118,27 @@ public class Surface implements Parcelable {
      * Surface.
      * @throws OutOfResourcesException if the surface could not be created.
      */
+    /*wwxx wms study part6 9、
+
+    Surface类有三个成员变量 mNativeObject 、 mCanvas 和 mName ，它们的类型分别是int、Canvas和mName，
+    其中， mNativeObject 保存的是在C++层的一个SurfaceControl对象的地址值，
+    mCanvas用来描述一块类型为 CompatibleCanvas 的画布，
+    mName用来描述当前正在创建的一个绘图表面的名称。
+    画布是真正用来绘制UI的地方，不过由于现在正在创建的绘图表面是在WindowManagerService服务这一侧使用的，
+    而WindowManagerService服务不会去绘制应用程序窗口的UI，它只会去设置应用程序窗口的属性，
+    因此，这里创建的画布实际上没有什么作用，我们主要关注与成员变量 mNativeObject 所关联的C++层的SurfaceControl对象是如何创建的。
+    
+    mNativeObject 其实是通过  outSurface.copyFrom(surfaceControl); 的方式吧 surfaceControl 里面的地址给到 mNativeObject的。
+
+
+    至此，我们就分析完成Android应用程序窗口的绘图表面的创建过程了。通过这个过程我们就可以知道：
+
+       1. 每一个应用程序窗口都对应有两个Java层的Surface对象，其中一个是在WindowManagerService服务这一侧创建的，而另外一个是在应用程序进程这一侧创建的。
+
+       2. 在WindowManagerService服务这一侧创建的Java层的Surface对象在C++层关联有一个SurfaceControl对象，用来设置应用窗口的属性，例如，大小和位置等。
+
+       3. 在应用程序进程这一侧创建的ava层的Surface对象在C++层关联有一个Surface对象，用来绘制应用程序窗品的UI。
+    */
     public Surface(SurfaceTexture surfaceTexture) {
         if (surfaceTexture == null) {
             throw new IllegalArgumentException("surfaceTexture must not be null");

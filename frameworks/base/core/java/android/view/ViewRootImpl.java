@@ -926,10 +926,36 @@ public final class ViewRootImpl implements ViewParent,
         scheduleTraversals();
     }
 
-	/*
-	¿´¿´requestLayout·½·¨£¬Ê×ÏÈ¼ìÑéÊÇ²»ÊÇÖ÷Ïß³ÌÔÚÐÞ¸ÄUI£¬
-	È»ºó µ÷ÓÃscheduleTraversals£¬ÔÚscheduleTraversals¿ªÊ¼Ö´ÐÐÁË£¬
-	²Å»áÓÐÎÒÃÇÊìÏ¤µÄonDraw,onLayout,onMeasure
+	/*wwxx wms study part6 1、
+
+    ViewRoot类的成员函数requestLayout首先调用另外一个成员函数checkThread来检查当前线程是否就是创建当前正在处理的ViewRoot对象的线程。
+    如果不是的话，那么ViewRoot类的成员函数checkThread就会抛出一个异常出来。ViewRoot类是从Handler类继承下来的，用来处理应用程序窗口的UI布局和渲染等消息。
+    由于这些消息都是与Ui相关的，因此它们就需要在UI线程中处理，这样我们就可以推断出当前正在处理的ViewRoot对象是要应用程序进程的UI线程中创建的。进一步地，
+    我们就可以推断出ViewRoot类的成员函数checkThread实际上就是用来检查当前线程是否是应用程序进程的UI线程，如果不是的话，它就会抛出一个异常出来。
+
+    通过了上述检查之后，ViewRoot类的成员函数requestLayout首先将其成员变量mLayoutRequested的值设置为true，表示应用程序进程的UI线程正在被请求执行一个UI布局操作，
+    接着再调用另外一个成员函数scheduleTraversals来继续执行UI布局的操作。
+
+    Step 2. ViewRoot.scheduleTraversals
+        这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java中。
+    Step 3. ViewRoot.performTraversals
+        这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java中。
+    Step 4. ViewRoot.relayoutWindow
+        这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java中。
+
+    Step 6. Session.relayout
+        这个函数定义在文件frameworks/base/services/java/com/android/server/Session.java中。
+    Step 7. WindowManagerService.relayoutWindow
+        这个函数定义在文件frameworks/base/services/java/com/android/server/WindowManagerService.java中。    
+    Step 8. WindowStateAnimator.createSurfaceLocked
+         这个函数定义在文件frameworks/base/services/java/com/android/server/WindowStateAnimator.java中。
+    Step 9. new Surface
+        这个函数定义在文件frameworks/base/core/java/android/view/Surface.java中。
+    
+    
+
+
+
 	*/
     @Override
     public void requestLayout() {
@@ -1239,6 +1265,33 @@ public final class ViewRootImpl implements ViewParent,
     }
     /*wwxx Step 1
     这个函数定义在文件 frameworks/base/core/java/android/view/ViewRoot.java中，它的实现很复杂，一共有600+行，不过大部分代码都是用来计算Activity窗口的大小的，我们分段来阅读
+
+
+
+
+
+    wwxx wms study part6 3、
+    ViewRoot类的成员函数performTraversals的实现是相当复杂的，这里我们分析它的实现框架，在以后的文章中，我们再详细分析它的实现细节。
+
+    在分析ViewRoot类的成员函数performTraversals的实现框架之前，我们首先了解ViewRoot类的以下五个成员变量：
+
+        mView ：它的类型为View，但它实际上指向的是一个DecorView对象，用来描述应用程序窗口的顶级视图，这一点可以参考前面Android应用程序窗口（Activity）的视图对象（View）的创建过程分析一文。
+
+        mLayoutRequested ：这是一个布尔变量，用来描述应用程序进程的UI线程是否需要正在被请求执行一个UI布局操作。
+
+        mFirst ：这是一个布尔变量，用来描述应用程序进程的UI线程是否第一次处理一个应用程序窗口的UI。
+
+        mFullRedrawNeeded ：这是一个布尔变量，用来描述应用程序进程的UI线程是否需要将一个应用程序窗口的全部区域都重新绘制。
+
+        mSurface ：它指向一个Java层的Surface对象，用来描述一个应用程序窗口的绘图表面。
+
+    注意，成员变量mSurface所指向的Surface对象在创建的时候，还没有在C++层有一个关联的Surface对象，因此，这时候它描述的就是一个无效的绘图表面。
+    另外，这个Surface对象在应用程序窗口运行的过程中，也会可能被销毁，因此，这时候它描述的绘图表面也会变得无效。在上述两种情况中，
+    我们都需要请求WindowManagerService服务来为当前正在处理的应用程序窗口创建有一个有效的绘图表面，以便可以在上面渲染UI。这个创建绘图表面的过程正是本文所要关心的。
+
+    这样，我们就分析完成ViewRoot类的成员函数performTraversals的实现框架了，接下来我们就继续分析ViewRoot类的成员函数 relayoutWindow 的实现，
+    以便可以看到当前正在处理的应用程序窗口的绘图表面是如何创建的。
+
     */
     private void performTraversals() {
         // cache mView since it is used so much below...
@@ -5313,7 +5366,11 @@ public final class ViewRootImpl implements ViewParent,
         }
         return mAccessibilityInteractionController;
     }
+    /*wwxx wms part6 4、
 
+
+
+    */
     private int relayoutWindow(WindowManager.LayoutParams params, int viewVisibility,
             boolean insetsPending) throws RemoteException {
 
