@@ -159,7 +159,15 @@ status_t GraphicBuffer::lock(uint32_t usage, void** vaddr)
     status_t res = lock(usage, lockBounds, vaddr);
     return res;
 }
+/*wwxx wms study part7 三.4
 
+GraphicBuffer类的成员变量 handle 是从父类 android_native_buffer_t 继承下来的，它的类型为 buffer_handle_t ，
+用来作为一个图形缓冲区的句柄，这个知识点可以参考前面Android应用程序请求SurfaceFlinger服务渲染Surface的过程分析一文。
+
+首先调用另外一个成员函数 getBufferMapper 来获得一个 GraphicBufferMapper 对象，
+然后再调用这个 GraphicBufferMapper 对象的成员函数lock来获得成员变量handle所描述的一个图形缓冲区的地址，并且保存在输出参数vaddr中。
+
+*/
 status_t GraphicBuffer::lock(uint32_t usage, const Rect& rect, void** vaddr)
 {
     if (rect.left < 0 || rect.right  > this->width || 
@@ -193,7 +201,13 @@ status_t GraphicBuffer::lockYCbCr(uint32_t usage, const Rect& rect,
     status_t res = getBufferMapper().lockYCbCr(handle, usage, rect, ycbcr);
     return res;
 }
+/*wwxx wms study part7 三.13、
+从前面的Step 4可以知道，GraphicBuffer类的成员变量handle用来描述当前正在处理的图形缓冲区的句柄，
+而GraphicBuffer类的成员函数getBufferMapper返回的是一个 GraphicBufferMapper 对象。
+有了这个 GraphicBufferMapper 对象之后，就可以调用它的成员函数unlock解锁成员变量handle所描述的一个图形缓冲区了。
 
+接下来，我们就继续分析GraphicBufferMapper类的成员函数unlock的实现。
+*/
 status_t GraphicBuffer::unlock()
 {
     status_t res = getBufferMapper().unlock(handle);

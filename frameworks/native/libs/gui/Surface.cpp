@@ -716,7 +716,57 @@ static status_t copyBlt(
 }
 
 // ----------------------------------------------------------------------------
+/*wwxx wms study part7 三.3
 
+Surface类的成员变量 mLockedBuffer 的类型为 GraphicBuffer ，如果它的值不等于0，那么它指向的就是应用程序窗口当前正在使用的图形缓冲区。
+如果应用程序窗口正在使用一个图形缓冲区，那么它是不可以再请求分配另一个图形缓冲区的，因此，当Surface类的成员变量mLockedBuffer的值不等于0时，
+函数就直接返回一个错误码INVALID_OPERATION给调用者了。
+
+Surface类的成员函数lock接下来就开始要分配一个图形缓冲区了，不过在分配之前，
+首先调用另外一个成员函数 setUsage 来将当前正在处理的Surface对象所描述的应用程序窗口的绘图表面的属性设置为（ GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN ），
+表示该应用程序窗口的UI是需要通过软件方式来渲染的，这是相对于使用GPU来渲染而言的。
+
+Surface类的成员函数 lock 接下来就调用另外一个成员函数 dequeueBuffer 来获得一个新的图形缓冲区了，这个新的图形缓冲区使用一个 ANativeWindowBuffer 对象 out 来描述的。
+在前面Android应用程序请求SurfaceFlinger服务渲染Surface的过程分析一文中，我们已经分析过Surface类的成员函数 dequeueBuffer 的实现了，它主要就是请求SurfaceFlinger服务来分配一个图形缓冲区。
+
+前面获得的 ANativeWindowBuffer 对象 out 接下来又会被封装成一个 GraphicBuffer 对象 backBuffer ，
+这样，Surface类的成员函数lock接下来就会通过 GraphicBuffer 对象 backBuffer 来访问前面所获得的图形缓冲区。
+
+Surface类是使用一种称为双缓冲的技术来渲染应用程序窗口的UI的。这种双缓冲技术需要两个图形缓冲区，其中一个称为前端缓冲区，另外一个称为后端缓冲区。
+前端缓冲区是正在渲染的图形缓冲区，而后端缓冲区是接下来要渲染的图形缓冲区，
+它们分别通过Surface类的成员变量 mPostedBuffer 和 mLockedBuffer 所指向的两个GraphicBuffer对象来描述。
+前面所获得的图形缓冲区backBuffer是作为后端缓冲区来使用的，即接下来它所指向的图形缓冲区也需要保存在Surface类的成员变量 mLockedBuffer 中。
+
+在将图形缓冲区 backBuffer 返回给调用者之前，Surface类的成员函数lock还需要对它进行进一步的处理，即判断是否需要前端缓冲区 mPostedBuffer 的内容拷贝回它里面去，
+以便可以支持部分更新应用程序窗口UI的功能。在满足以下三个条件下，Surface类的成员函数lock可以将前端缓冲区的内容拷贝到后端缓冲区中去：
+
+1. 前端缓冲区的内容拷贝到后端缓冲区所描述的区域的宽度和高度相同。
+2. 前端缓冲区和后端缓冲区的像素格式相同。
+3. 应用程序窗口绘图表面的属性值 mFlags 的 ISurfaceComposer::eDestroyBackbuffer 位等于0，即在渲染了应用程序窗口的UI之后，应该保留正在渲染的图形缓冲区的内容。
+
+如果能将前端缓冲区的内容拷贝到后端缓冲区中去，那么就不用重新绘制应用程序窗口的所有区域，而只需要绘制那些脏的区域，即Region对象newDirtyRegion所描述的区域。
+注意，参数 dirtyIn 所描述的区域是原先指定的脏区域，但是在分配了新的后端缓冲区backBuffer之后，
+我们需要将新的图形缓冲区 backBuffer 所描述的区域 boundsRegion 与原先指定的脏区域作一个与操作，得到才是最后需要重绘的脏区域newDirtyRegion。
+由于在这种情况下，我们只在后端缓冲区backBuffer绘制中绘制应用程序窗口的脏区域，因此，就需要将那些干净的区域从前端缓冲区frontBuffer拷贝到图形缓冲区backBuffer的对应位置去，
+这是通过调用函数copyBlt来实现的。应用程序窗口的干净区域使用Region对象copyback来描述，它是从应用程序窗口上一次所重绘的区域减去接下来需要重绘的脏区域newDirtyRegion得到的，
+而应用程序窗口上一次所重绘的区域是保存在Surface类的成员变量mOldDirtyRegion中的。
+
+ 如果不能将前端缓冲区的内容拷贝到后端缓冲区中去，那么接下来就需要重新绘制应用程序窗口的所有区域了，
+ 这时候应用程序窗口的脏区域 newDirtyRegion 就会被修改为后端缓冲区backBuffer所描述的区域 boundsRegion 。
+
+Surface类的成员函数lock处理完成前后端缓冲区的拷贝问题之后，接下来就会调用后端缓冲区backBuffer所指向的一个GraphicBuffer对象的成员函数lock来获得它的地址vaddr，
+以便接下来保存在参数outBuffer所描述的一个 ANativeWindowBuffer 对象的成员变量bits中，这样调用者就获得后端缓冲区backBuffer的地址值了。
+注意，同时保存在SurfaceInfo对象中的信息还包括后端缓冲区backBuffer的宽度width、高度height、每行像素点stride、用途usage和像素格式format。
+
+Surface类的成员函数lock还会将接下来要重绘的脏缓冲区newDirtyRegion保存在Surface类的成员变量mOldDirtyRegion中，
+以便再下一次为应用程序窗口分配图形缓冲区时，可以知道应用程序窗口的上一次重绘区域，即上一次干净区域。
+
+此外，Surface类的成员函数lock还会将后端缓冲区backBuffer保存在Surface类的成员变量 mLockedBuffer ，这样就可以知道应用程序窗口当前正在使用的图形缓冲区，
+即下一次要请求SurfaceFlinger服务渲染的图形缓冲区。
+
+
+接下来，我们继续分析GraphicBuffer类的成员函数lock的实现，以便可以了解一个图形缓冲区的地址是如何获得的。
+*/
 status_t Surface::lock(
         ANativeWindow_Buffer* outBuffer, ARect* inOutDirtyBounds)
 {
@@ -819,7 +869,27 @@ status_t Surface::lock(
     }
     return err;
 }
+/*wwxx wms study part7 三.12、
+从前面的Step 3可以知道，应用程序窗口当前正在使用的图形缓冲区保存在Surface类的成员变量 mLockedBuffer 中，
 
+因此，Surface类的成员函数 unlockAndPost 的目标就是要将它交给SurfaceFlinger服务来渲染，
+这是通过调用另外一个成员函数 queueBuffer 来实现的。在前面Android应用程序请求SurfaceFlinger服务渲染Surface的过程分析一文中，
+ 我们已经分析过Surface类的成员函数 queueBuffer 的实现了，它主要就是向应用程序窗口的待渲染图形缓冲区队列中添加一个图形缓冲区，
+ 然后再请请求SurfaceFlinger服务来渲染这个图形缓冲区。
+
+在渲染成员变量 mLockedBuffer 所描述的一个图形缓冲区之前，Surface类的成员函数 unlockAndPost 还会调用它的成员函数unlock来执行一个“解锁”操作。
+从前面的Step 3可以知道，成员变量mLockedBuffer所描述的一个图形缓冲区在交给应用程序窗口使用之前，它会被执行一个“锁定”的操作，
+即它的成员函数lock会被调用，因此，这里执行的“解锁”操作是与前面的“锁定”操作相对应的。事实上，对成员变量mLockedBuffer所描述的一个图形缓冲区进行锁定，
+主要是为了获得这个图形缓冲区的地址，是否真的要对个图形缓冲区进行锁定，是由HAL层模块Gralloc的实现来决定的。
+
+在请求SurfaceFlinger服务渲染了成员变量 mLockedBuffer 所描述的一个图形缓冲区之后，
+Surface类的成员函数unlockAndPost还会把成员变量 mLockedBuffer 所描述的一个图形缓冲区保存在另外一个成员变量 mPostedBuffer 中，
+表示这个图形缓冲区已经变成是正在渲染的图形缓冲区了，或者说是前端缓冲区了。
+
+最后，Surface类的成员函数unlockAndPost就把成员变量mLockedBuffer的值设置为0，这样就可以将应用程序窗口下一次请求分配和使用的图形缓冲区保存在它里面。
+
+Surface类的成员变量 mLockedBuffer 指向的是一个 GraphicBuffer 对象，接下来我们就继续分析它的成员函数 unlock 的实现，以便可以了解它所描述的图形缓冲区的“解锁”过程。
+*/
 status_t Surface::unlockAndPost()
 {
     if (mLockedBuffer == 0) {

@@ -291,6 +291,29 @@ public class FrameLayout extends ViewGroup {
     /**
      * {@inheritDoc}
      */
+    /*wwxx wms study part7 一.2、
+    
+    FrameLayout类是从 ViewGroup 类继承下来的，后者用来描述一个视图容器，它有一个类型为 View 的数组 mChildren ，里面保存的就是它的各个子视图。
+    ViewGroup类所供了两个成员函数 getChildCount 和 getChildAt ，它们分别用来获得一个视图容器所包含的子视图的个数，以及获得每一个子视图。
+
+    FrameLayout类的成员函数onMeasure首先是调用另一个成员函数measureChildWithMargins来测量每一个子视图的宽度和高度，
+    并且找到这些子视图的最大宽度和高度值，保存在变量maxWidth和maxHeight 中。
+    
+    FrameLayout类的成员函数 onMeasure 接着再将前面得到的宽度 maxWidth 和高度 maxHeight 分别加上当前视图所设置的Padding值，
+    其中，（ mPaddingLeft ，mPaddingRight，mPaddingTop，mPaddingBottom ）表示当前视图的内容区域的左右上下四条边分别到当前视图的左右上下四条边的距离，
+    它们是父类View的四个成员变量，
+    （mForegroundPaddingLeft，mForegroundPaddingRight，mForegroundPaddingTop，mForegroundPaddingBottom）表示当前视图的各个子视图所围成的区域的左右上下
+    四条边到当前视视的前景区域的左右上下四条边的距离。
+    从这里就可以看出，当前视图的内容区域的大小就等于前景区域的大小，而前景区域的大小大于等于各个子视图的所围成的区域，
+    这是因为前景区域本来就是用来覆盖各个子视图所围成的区域的。
+    
+    得到了当前正在测量的子视图child的正确宽度childWidthMeasureSpec和高度childHeightMeasureSpec之后，就可以调用它的成员函数measure来设置它的大小了，
+    即执行前面Step 1的操作。注意，如果当前正在测量的子视图child描述的也是一个视图容器，那么它又会重复执行Step 2和Step 3的操作，直到它的所有子孙视图的大小都测量完成为止。
+
+     至此，我们就分析完成Android应用程序窗口的测量过程了，接下来我们继续分析Android应用程序窗口的布局过程。
+
+
+    */
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int count = getChildCount();
@@ -383,6 +406,18 @@ public class FrameLayout extends ViewGroup {
     /**
      * {@inheritDoc}
      */
+    /*wwxx wms study part7 二.5:
+
+    FrameLayout类的成员函数onLayout通过一个for循环来布局当前视图的每一个子视图。如果一个子视图child是可见的，
+    那么FrameLayout类的成员函数onLayout就会根据当前视图可以用来显示子视图的区域以及它所设置的gravity属性来得到它在应用程序窗口中的左上角位置
+
+    当一个子视图child在应用程序窗口中的左上角位置确定了之后，再结合它在前面的测量过程中所确定的宽度width和高度height，
+    我们就可以完全地确定它在应用程序窗口中的布局了，即可以调用它的成员函数layout来设置它的位置和大小了，
+    这刚好就是前面的Step 1所执行的操作。注意，如果当前正在布局的子视图child描述的也是一个视图容器，那么它又会重复执行Step 5的操作，直到它的所有子孙视图都布局完成为止。 
+
+    至此，我们就分析完成Android应用程序窗口的布局过程了，接下来我们继续分析Android应用程序窗口的绘制过程。
+
+    */
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         layoutChildren(left, top, right, bottom, false /* no force left gravity */);
@@ -467,6 +502,13 @@ public class FrameLayout extends ViewGroup {
     /**
      * {@inheritDoc}
      */
+    /*wwxx wms study part7 二.7、
+     FrameLayout类的成员函数draw首先调用父类View的成员函数draw来绘制它的UI内容，然后再检查它是否设置了一个前景图，
+     即成员变量 mForeground 的值是否等于null。如果不等于null的话，那么就会先设置这个前景图的大小和位置，
+     然后再调用用成员变量 mForeground 所指向的一个Drawable对象的成员函数draw来在画布canvas上绘制这个前景图。
+
+    接下来，我们就继续分析View类的成员函数draw的实现，以便可以了解应用程序窗口UI的绘制过程。
+    */
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);

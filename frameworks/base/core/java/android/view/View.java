@@ -10901,6 +10901,22 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * well. This is usually true for a full invalidate, but may be set to false if the
      * View's contents or dimensions have not changed.
      */
+    /*wwxx wms study part7 二.3:
+	 View类的成员函数 invalidate 首先检查成员变量 mPrivateFlags 的DRAWN位和HAS_BOUNDS位是否都被设置为1。
+	 如果是的话，那么就说明当前视图上一次请求执行的UI绘制操作已经执行完成了，这时候View类的成员函数invalidate才可以请求执行新的UI绘制操作。
+
+	View类的成员函数invalidate在请求新的UI绘制操作之前，会将成员变量mPrivateFlags的DRAWN位和DRAWING_CACHE_VALID位重置为0，
+	其中，后者表示当前视图正在缓存的一些绘图对象已经失效了，这是因为接下来就要重新开始绘制当前视图的UI了。 
+
+	请求绘制当前视图的UI是通过调用View类的成员变量mParent所描述的一个ViewParent接口的成员函数 invalidateChild 来实现的。
+	前面我们假设当前视图是应用程序窗口的顶层视图，即它是一个类型为DecoreView的视图，它的成员变量mParent指向的是与其所关联的一个ViewRoot对象。
+	因此，绘制当前视图的UI的操作实际上是通过调用ViewRoot类的成员函数 invalidateChild 来实现的。
+
+	注意，在调用ViewRoot类的成员函数invalidateChild的成员函数invalidateChild来绘制当前视图的UI之前，
+	会将当前视图即将要绘制的区域记录在View类的成员变量mAttachInfo所描述的一个AttachInfo对象的成员变量mTmpInvalRect中。
+
+      接下来，我们就继续分析ViewRoot类的成员函数 invalidateChild 的实现。
+    */
     void invalidate(boolean invalidateCache) {
         if (skipInvalidate()) {
             return;
@@ -14411,6 +14427,25 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      *
      * @param canvas The Canvas to which the View is rendered.
      */
+    /*wwxx wms study part7 二.8、
+	1. 绘制当前视图的背景。
+
+	2. 保存当前画布的堆栈状态，并且在在当前画布上创建额外的图层，以便接下来可以用来绘制当前视图在滑动时的边框渐变效果。
+
+	3. 绘制当前视图的内容。
+
+	4. 绘制当前视图的子视图的内容。
+
+	5. 绘制当前视图在滑动时的边框渐变效果。
+
+	6. 绘制当前视图的滚动条。
+
+	在上面六个操作中，有些是可以优化的。例如，如果当前视图的某一个子视图是不透明的，并且覆盖了当前视图的内容，
+	那么当前视图的背景以及内容就不会绘制了，即不用执行第1和第3个操作。又如，如果当前视图不是处于滑动的状态，那么第2和第5个操作也是不用执行的。
+
+	接下来我们就分段来阅读View类的成员函数draw的代码：
+
+    */
     public void draw(Canvas canvas) {
         if (mClipBounds != null) {
             canvas.clipRect(mClipBounds);
@@ -14798,6 +14833,23 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @param r Right position, relative to parent
      * @param b Bottom position, relative to parent
      */
+    /*wwxx wms study part7 二.1、
+
+    参数l、t、r和b分别用来描述当前视图的左上右下四条边与其父视图的左上右下四条边的距离，这样当前视图通过这四个参数就可以知道它在父视图中的位置以及大小。
+    View类的成员函数layout首先调用另外一个成员函数 setFrame 来设置当前视图的位置以及大小。
+    设置完成之后，如果当前视图的大小或者位置与上次相比发生了变化，那么View类的成员函数 setFrame 的返回值changed就会等于true。
+    在这种情况下， View类的成员函数layout就会继续调用另外一个成员函数 onLayout 重新布局当前视图的子视图。
+    此外，如果此时View类的成员变量 mPrivateFlags 的 PFLAG_LAYOUT_REQUIRED 位不等于0，
+    那么也表示当前视图需要重新布局它的子视图，因此，这时候View类的成员函数 layout 也会调用另外一个成员函数 onLayout 。
+
+	当前视图的子视图都重新布局完成之后，View类的成员函数 layout 就可以将成员变量 mPrivateFlags 的 PFLAG_LAYOUT_REQUIRED 位设置为0了，
+	因为此时当前视图及其子视图都已经执行了一次布局操作了。
+
+	View类的成员函数layout最后还会将成员变量 mPrivateFlags 的 PFLAG_LAYOUT_REQUIRED 位设置为0，也是因为此时当前视图及其子视图的布局已经是最新的了。
+	接下来，我们就继续分析View类的成员函数 setFrame 和 onLayout 的实现，以便可以了解当前视图及其子视图是如何执行布局操作的。
+
+
+    */
     @SuppressWarnings({"unchecked"})
     public void layout(int l, int t, int r, int b) {
         if ((mPrivateFlags3 & PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT) != 0) {
@@ -14861,6 +14913,39 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      *         previous ones
      * {@hide}
      */
+    /*wwxx wms study part7 二.2:
+
+    View类的成员变量mLeft、mRight、mTop和mBottom分别用来描述当前视图的左右上下四条边与其父视图的左右上下四条边的距离，
+    如果它们的值与参数left、right、top和bottom的值不相等，那么就说明当前视图的大小或者位置发生变化了。
+    这时候View类的成员函数setFrame就需要将参数left、right、top和bottom的值分别记录在成员变量mLeft、mRight、mTop和mBottom中。在记录之前，还会执行两个操作：
+	1. 将成员变量 mPrivateFlags 的DRAWN位记录在变量drawn中，并且调用另外一个成员函数 invalidate 来检查当前视图上次请求的UI绘制操作是否已经执行。
+	   如果已经执行了的话，那么就会再请求执行一个UI绘制操作，以便可以在修改当前视图的大小和位置之前，将当前视图在当前位置按照当前大小显示一次。
+	   在接下来的Step 3中，我们再详细分析View类的成员函数 invalidate 的实现。
+	2. 计算当前视图上一次的宽度 oldWidth 和 oldHeight ，以便接下来可以检查当前视图的大小是否发生了变化。
+	当前视图距离父视图的边距一旦设置好之后，它就是一个具有边界的视图了，因此，View类的成员函数setFrame接着还会将成员变量mPrivateFlags的HAS_BOUNDS设置为1。
+	
+	View类的成员函数setFrame再接下来又会计算当前视图新的宽度newWidth和高度newHeight，如果它们与上一次的宽度oldWidth和oldHeight的值不相等，
+	那么就说明当前视图的大小发生了变化，这时候就会调用另外一个成员函数onSizeChanged来让子类有机会处理这个变化事件。
+
+	View类的成员函数 setFrame 接下来继续判断当前视图是否是可见的，即成员变量mViewFlags的VISIBILITY_MASK位的值是否等于 VISIBLE 。
+	如果是可见的话，那么就需要将成员变量mPrivateFlags的DRAWN位设置为1，
+	以便接下来可以调用另外一个成员函数 invalidate 来成功地执行一次UI绘制操作，目的是为了将当前视图马上显示出来。
+
+	View类的成员变量 mPrivateFlags 的DRAWN位描述的是当前视图上一次请求的UI绘制操作是否已经执行过了。如果它的值等于1，就表示已经执行过了，
+	否则的话，就表示还没在等待执行。前面第一次调用View类的成员函数 invalidate 来检查当前视图上次请求的UI绘制操作是否已经执行时，
+	如果发现已经执行了，那么就会重新请求执行一次新的UI绘制操作，这时候会导致当前视图的成员变量mPrivateFlags的DRAWN位重置为0。
+	注意，新请求执行的UI绘制只是为了在修改当前视图的大小以及大小之前，先将它在上一次设置的大小以及位置中绘制出来，
+	这样就可以使得当前视图的大小以及位置出现平滑的变换。换句话说，新请求执行的UI绘制只是为了获得一个中间效果，
+	它不应该影响当前视图的绘制状态，即不可以修改当前视图的成员变量mPrivateFlags的DRAWN位。因此，我们就需要在前面第一次调用View类的成员函数invalidate前，
+	先将当前视图的成员变量mPrivateFlags的DRAWN位保存下来，即保存在变量drawn中，然后等到调用之后，再将变量drawn的值恢复到当前视图的成员变量 mPrivateFlags 的DRAWN位中去。
+
+	另一方面，如果当前视图的大小和位置发生了变化，View类的成员函数setFrame还会将成员变量mBackgroundSizeChanged的值设置为true，以便可以表示当前视图的背景大小发生了变化。
+
+    最后，View类的成员函数setFrame将变量changed的值返回给调用者，以便调用者可以知道当前视图的大小和位置是否发生了变化。
+
+    接下来，我们继续分析View类的成员函数 invalidate 的实现，以便可以了解当前视图是如何执行一次UI绘制操作的。
+
+    */
     protected boolean setFrame(int left, int top, int right, int bottom) {
         boolean changed = false;
 
@@ -16467,6 +16552,32 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      *
      * @see #onMeasure(int, int)
      */
+    /*wwxx wms part7 一.1
+
+    参数 widthMeasureSpec 和 heightMeasureSpec 用来描述当前正在处理的视图可以获得的最大宽度和高度。
+    对于应用程序窗口的顶层视图来说，我们也可以认为这两个参数是用来描述应用程序窗口的宽度和高度。
+
+     类的成员变量 mPrivateFlags 的类型为int，如果它的某一个位的值不等于0，那么就隐含着当前视图有一个相应的操作在等待执行中。
+    ViewRoot类的另外两个成员变量 mOldWidthMeasureSpec 和 mOldHeightMeasureSpec 用来保存当前视图上一次可以获得的最大宽度和高度。 
+	
+	当ViewRoot类的成员变量mPrivateFlags的 PFLAG_FORCE_LAYOUT 位不等于0时，就表示当前视图正在请求执行一次布局操作，这时候函数就需要重新测量当前视图的宽度和高度。
+	此外，当参数 widthMeasureSpec 和 heightMeasureSpec 的值不等于ViewRoot类的成员变量 mOldWidthMeasureSpec 和 mOldHeightMeasureSpec 的值时，
+	就表示当前视图上一次可以获得的最大宽度和高度已经失效了，这时候函数也需要重新测量当前视图的宽度和高度。
+
+	当View类的成员函数measure决定要重新测量当前视图的宽度和高度之后，它就会首先将成员变量 mPrivateFlags 的 PFLAG_MEASURED_DIMENSION_SET 位设置为0，
+	接着再调用另外一个成员函数onMeasure来真正执行测量宽度和高度的操作。View类的成员函数onMeasure执行完成之后，
+	需要再调用另外一个成员函数 setMeasuredDimension 来将测量好的宽度和高度设置到View类的成员变量mMeasuredWidth和mMeasuredHeight中，
+	并且将成员变量mPrivateFlags的 PFLAG_MEASURED_DIMENSION_SET 位设置为1。这个操作是强制的，因为当前视图最终就是通过View类的成员变量mMeasuredWidth和mMeasuredHeight来获得它的宽度和高度的。
+	为了保证这个操作是强制的，View类的成员函数measure再接下来就会检查成员变量mPrivateFlags的EASURED_DIMENSION_SET位是否被设置为1了。
+	如果不是的话，那么就会抛出一个类型为 IllegalStateException 的异常来。
+
+	View类的成员函数measure最后就会把参数 widthMeasureSpec 和 heightMeasureSpec 的值保存在成员变量 mOldWidthMeasureSpec 和 mOldHeightMeasureSpec 中，
+	以便可以记录当前视图上一次可以获得的最大宽度和高度。
+
+    View类的成员函数onMeasure一般是由其子类来重写的。例如，对于用来应用程序窗口的顶层视图的DecorView类来说，
+    它是通过父类FrameLayout来重写祖父类View的成员函数onMeasure的。因此，接下来我们就分析FrameLayout类的成员函数onMeasure的实现。
+
+    */
     public final void measure(int widthMeasureSpec, int heightMeasureSpec) {
         boolean optical = isLayoutModeOptical(this);
         if (optical != isLayoutModeOptical(mParent)) {

@@ -2288,7 +2288,70 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
             }
             return changed;
         }
+        /*wwxx wms study part7
+        
+        一、Android应用程序窗口的测量过程
 
+        从前面Android应用程序窗口（Activity）的视图对象（View）的创建过程分析一文可以知道，Android应用程序窗口的顶层视图是一个类型为DecorView的UI元素，
+        而从前面Android应用程序窗口（Activity）的绘图表面（Surface）的创建过程分析一文的Step 3又可以知道，
+        这个顶层视图最终是由ViewRoot类的成员函数 performTraversals 来启动测量、布局和绘制操作的，
+        这三个操作分别由 DecorView 类的成员函数 measure 和 layout 以及 ViewRoot 类的成员函数 draw 来实现的。
+        
+        接下来，我们就分别从DecorView类的成员函数 measure 和 layout 以及ViewRootimpl类的成员函数draw开始，分析Android应用程序窗口的测量、布局和绘制过程。
+        这个过程可以分为3个步骤，接下来我们就详细分析每一个步骤。
+
+        Step 1. View.measure
+            这个函数定义在文件frameworks/base/core/java/android/view/View.java中。
+        Step 2. rameLayout.onMeasure
+            这个函数定义在文件frameworks/base/core/java/android/widget/FrameLayout.java中。
+
+        二. Android应用程序窗口的布局过程
+        DecorView类的成员函数 layout 是从父类View继承下来的，因此，我们就从View类的成员函数layout开始分析应用程序窗口的布局过程，
+        这个过程可以分为5个步骤，接下来我们就详细地分析每一个步骤。
+        Step 1. View.layout
+            这个函数定义在文件frameworks/base/core/java/android/view/View.java中。
+
+        Step 2. View.setFrame
+            这个函数定义在文件frameworks/base/core/java/android/view/View.java中。
+        Step 3. View.invalidate
+            这个函数定义在文件frameworks/base/core/java/android/view/View.java中。
+        Step 4. ViewRoot.invalidateChild
+            这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java中。
+        Step 5. FrameLayout.onLayout
+            这个函数定义在文件frameworks/base/core/java/android/widget/FrameLayout.java中。
+
+        三、 Android应用程序窗口的绘制过程
+        ViewRoot类的成员函数draw首先会创建一块画布，接着再在画布上绘制Android应用程序窗口的UI，最后再将画布的内容交给SurfaceFlinger服务来渲染
+        这个过程可以分为14个步骤，接下来我们就详细分析每一个步骤。
+        Step 1. ViewRoot.draw
+            这个函数定义在文件frameworks/base/core/java/android/view/ViewRoot.java中。
+        Step 2. Surface.lockCanvas
+            这个函数定义在文件frameworks/base/core/java/android/view/Surface.java中。
+        Step 3. Surface.lock
+            这个函数定义在文件frameworks/base/libs/surfaceflinger_client/Surface.cpp中。
+        Step 4. GraphicBuffer.lock   
+            这个函数定义在文件frameworks/base/libs/ui/GraphicBuffer.cpp中。
+        Step 5. GraphicBufferMapper.lock
+            这个函数定义在文件frameworks/base/libs/ui/GraphicBufferMapper.cpp。 
+        Step 6. DecorView.draw
+            这个函数定义在文件frameworks/base/policy/src/com/android/internal/policy/impl/PhoneWindow.java中。
+        Step 7. FrameLayout.draw
+            这个函数定义在文件frameworks/base/core/java/android/widget/FrameLayout.java中。
+        Step 8. View.draw
+            这个函数定义在文件frameworks/base/core/java/android/view/View.java中
+        Step 9. ViewGroup.dispatchDraw
+            这个函数定义在文件frameworks/base/core/java/android/view/ViewGroup.java中
+        Step 10. ViewGroup.drawChild
+            这个函数定义在文件frameworks/base/core/java/android/view/ViewGroup.java中
+        Step 11. Surface.unlockCanvasAndPost
+             这个函数定义在文件frameworks/base/core/java/android/view/Surface.java中。
+        Step 12. Surface.unlockAndPost
+            这个函数定义在文件frameworks/base/libs/surfaceflinger_client/Surface.cpp中。
+        Step 13. GraphicBuffer.unlock
+            这个函数定义在文件frameworks/base/libs/ui/GraphicBuffer.cpp中。
+        Step 14. GraphicBufferMapper.unlock
+             这个函数定义在文件frameworks/base/libs/ui/GraphicBufferMapper.cpp。
+        */
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
             final DisplayMetrics metrics = getContext().getResources().getDisplayMetrics();
@@ -2371,7 +2434,12 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec);
             }
         }
+        /*wwxx wms study part7 三.6
+        DecorView类的成员函数draw首先调用父类FrameLayout的成员函数draw来绘制它的UI内容，然后再检查它是否设置了菜单背景，
+        即成员变量 mMenuBackground 的值是否不等于null。
 
+        接下来，我们就继续分析FrameLayout的成员函数draw的实现，以便可以了解应用程序窗口UI的绘制过程。
+        */
         @Override
         public void draw(Canvas canvas) {
             super.draw(canvas);

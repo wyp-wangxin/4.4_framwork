@@ -250,6 +250,11 @@ public class Surface implements Parcelable {
      * @throws IllegalArgumentException If the inOutDirty rectangle is not valid.
      * @throws OutOfResourcesException If the canvas cannot be locked.
      */
+    /*wwxx wms study part7 三.2:
+    Surface类的成员函数lockCanvas调用另外一个成员函数 lockCanvasNative 来创建一块画布。
+    Surface类的成员函数lockCanvasNative是一个JNI方法，它是由C++层的函数Surface_lockCanvas来实现的
+        这个函数定义在文件frameworks/base/core/jni/android_view_Surface.cpp中。
+    */
     public Canvas lockCanvas(Rect inOutDirty)
             throws Surface.OutOfResourcesException, IllegalArgumentException {
         synchronized (mLock) {
@@ -272,6 +277,10 @@ public class Surface implements Parcelable {
      *
      * @param canvas The canvas previously obtained from {@link #lockCanvas}.
      */
+    /*wwxx wms study part7 三.11、
+    Surface类的成员函数 unlockCanvasAndPost是一个JNI方法，它是由C++层的函数 nativeUnlockCanvasAndPost 来实现的
+    这个函数定义在文件frameworks/base/core/jni/android_view_Surface.cpp中。
+    */
     public void unlockCanvasAndPost(Canvas canvas) {
         if (canvas != mCanvas) {
             throw new IllegalArgumentException("canvas object must be the same instance that "

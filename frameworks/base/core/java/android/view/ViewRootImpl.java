@@ -985,7 +985,33 @@ public final class ViewRootImpl implements ViewParent,
             }
         }
     }
+    /*wwxx wms study part7 二.4:
+    ViewRoot类的成员函数invalidateChild首先调用另外一个成员函数 checkThread 来检查当前正在执行的是否是一个UI线程。
+    如果不是的话，ViewRoot类的成员函数checkThread就会抛出一个异常出来。这是因为所有的UI操作都必须要在UI线程中执行。
 
+    ViewRoot类的成员函数invalidateChild接下来还会检查当前正在处理的应用程序窗口在Y轴上是否出现有滚动条，
+    即成员变量 mCurScrollY 的值不等于0， 或者前正在处理的应用程序窗口是否运行在兼容模式之下，即成员变量 mTranslator 的值不等于null。
+    当一个应用程序窗口运行在兼容模式时，它显示出来的大小和它实际被设置的大小是不一样的，要经过相应的转换处理。
+    对于上述这两种情况，ViewRoot类的成员函数invalidateChild都需要调整参数 dirty 所描述的一个需要重新绘制的区域的大小和位置。
+
+    调整好参数dirty所描述的一个需要重新绘制的区域之后， ViewRoot类的成员函数invalidateChild就将它所描述的一个区域与成员变量mDirty所描述的一区域执行一个合并操作，
+    并且将得到的新区域保存在成员变量 mDirty 中。从这个操作就可以看出，ViewRoot类的成员变量 mDirty 描述的就是当前正在处理的应用程序窗口下一次所要重新绘制的总区域。
+
+    设置好当前正在处理的应用程序窗口下一次所要重新绘制的总区域之后，ViewRoot类的成员函数invalidateChild最后就检查成员变量 mWillDrawSoon 的值是否不等于true。
+    如果ViewRoot类的成员 mWillDrawSoon 的值等于true的话，那么就说明UI线程的消息队列中已经有一个DO_TRAVERSAL消息在等待执行了，
+    这时候就不需要调用ViewRoot类的成员函数 scheduleTraversals 来向UI线程的消息队列发送一个DO_TRAVERSAL消息了，
+    否则的话，就需要调用ViewRoot类的成员函数scheduleTraversals来向UI线程的消息队列发送一个DO_TRAVERSAL消息。
+
+     ViewRoot类的成员函数scheduleTraversals在前面Android应用程序窗口（Activity）的绘图表面（Surface）的创建过程分析一文中已经分析过了，这里不再详述。
+
+    这一步执行完成之后，返回到前面的Step 1中，即View类的成员函数layout中，接下来它就会调用另外一个成员函数 onLayout 来重新布局当前视图的子视图的布局了。
+    View类的成员函数onLayout是由子类来重写的，并且只有当该子类描述的是一个容器视图时，它才会重写父类View的成员函数onLayout。
+    前面我们已经假设当前正在处理的是应用程序窗口的顶层视图，它的类型为DecorView，并且它描述的是一个容器视图，因此，接下来我们就会继续分析DecorView类的成员函数onLayout的实现。 
+
+    事实上，DecorView类是通过FrameLayout类来间接继承View类的，并且它的成员函数onLayout是从FrameLayout类继承下来的，
+    因此，接下来我们实际上要分析的是FrameLayout类的成员函数onLayout的实现。
+
+    */
     @Override
     public void invalidateChild(View child, Rect dirty) {
         invalidateChildInParent(null, dirty);
@@ -2590,7 +2616,34 @@ public final class ViewRootImpl implements ViewParent,
             }
         }
     }
+    /*wwxx wms study part7 三.1:
 
+    ViewRoot类的成员函数draw的执行流程如下所示：
+
+    1. 将成员变量 mSurface 所描述的应用程序窗口的绘图表面保存在变量surface中，以便接下来可以通过变量surface来操作应用程序窗口的绘图表面。
+    
+    2. 调用成员变量 mScroller 所描述的一个Scroller对象的成员函数 computeScrollOffset 来计算应用程序窗口是否处于正在滚动的状态中。
+       如果是的话，那么得到的变量 animating 就会等于true，这时候调用成员变量 mScroller 所描述的一个Scroller对象的成员函数getCurrY
+       就可以得到应用程序窗口在Y轴上的即时滚动位置yoff。
+    3. 成员变量 mScrollY 用来描述应用程序窗口下一次绘制时在Y轴上应该滚动到的位置，因此，如果应用程序窗口不是处于正在滚动的状态，
+       那么它在下一次绘制时，就应该直接将它在Y轴上的即时滚动位置yoff设置为mScrollY。
+    4. 成员变量 mCurScrollY 用来描述应用程序窗口上一次绘制时在Y轴上的滚动位置，如果它的值不等变量yoff的值，那么就表示应用程序窗口在Y轴上的滚动位置发生变化了，
+       这时候就需要将变量yoff的值保存在成员变量mCurScrollY中，并且将参数 fullRedrawNeeded 的设置为true，表示要重新绘制应用程序窗口的所有区域。
+    5. 成员变量mAttachInfo所描述的一个AttachInfo对象的成员变量mScalingRequired表示应用程序窗口是否正在请求进行大小缩放，
+       如果是的话，那么所请求的大小缩放因子就保存在这个AttachInfo对象的另外一个成员变量mApplicationScale中。
+       函数将这两个值保存在变量 scalingRequired 和 appScale 中，以便接下来可以使用。    
+    6. 成员变量mDirty描述的是一个矩形区域，表示应用程序窗口的脏区域，即需要重新绘制的区域。函数将这个脏区域保存变量dirty中，以便接下来可以使用。
+
+    7. attachInfo.mHardwareRenderer.draw  使用硬件GPU 来绘制
+
+    8.drawSoftware(surface, attachInfo, yoff, scalingRequired, dirty) 使用软件CPU来绘制
+    
+    9、看一下drawSoftware吧
+
+    10 、在请求SurfaceFlinger服务渲染应用程序窗口的UI之后，函数同样是需要判断变量 animating 的值是否等于true。
+        如果等于的话，那么就与前面的第9步一样，函数需要将成员变量 mFullRedrawNeeded 的值设置为true，并且调用另外一个成员函数scheduleTraversals来请求执行下一次的重绘操作。
+
+    */
     private void draw(boolean fullRedrawNeeded) {
         Surface surface = mSurface;
         if (!surface.isValid()) {
@@ -2731,6 +2784,18 @@ public final class ViewRootImpl implements ViewParent,
     /**
      * @return true if drawing was succesfull, false if an error occurred
      */
+    /*wwxx wms study part7 三.1:
+    函数接下来就需要重新绘制应用程序窗口的UI了。在绘制之前，首先会调用用来描述应用程序窗口的绘图表面的一个Surface对象surface的成员函数 lockCanvas 来创建一块画布 canvas 。
+    有了这块画布之后，接下来就可以调用成员变量 mView 所描述的一个类型为DecorView的顶层视图的成员函数 draw 来在上面绘制应用程序窗口的UI了。 
+    在绘制之前，还需要对画布进行适当的A、B和C转换，以及需要在绘制之后恢复画布在绘制之前的矩阵变换堆栈状态。
+
+    绘制完成之后，应用程序窗口的UI就都体现在前面所创建的画布canvas上了，
+    因此，这时候就需要将它交给SurfaceFlinger服务来渲染，这是通过调用用来描述应用程序窗口的绘图表面的一个Surface对象surface的成员函数 unlockCanvasAndPost 来实现的。
+
+
+    接下来，我们就分别分析Java层的Surface类的成员函数lockCanvas、DecorView类的成员函数draw和Java层的Surface类的成员函数unlockCanvasAndPost的实现。
+
+    */
     private boolean drawSoftware(Surface surface, AttachInfo attachInfo, int yoff,
             boolean scalingRequired, Rect dirty) {
 

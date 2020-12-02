@@ -198,7 +198,40 @@ static inline void swapCanvasPtr(JNIEnv* env, jobject canvasObj, SkCanvas* newCa
   env->SetIntField(canvasFinalizerObj, gCanvasFinalizerClassInfo.mNativeCanvas, (int)newCanvas);
   SkSafeUnref(previousCanvas);
 }
+/*wwxx wms study part7 三.2:
+参数 clazz 指向的是一个Java层的Surface对象。从前面Android应用程序窗口（Activity）的绘图表面（Surface）的创建过程分析一文可以知道，
+每一个Java层的Surface对象在C++层都对应有一个Surface对象。因此，函数首先调用另外一个函数 getSurface 来获得与参数clazz所对应的C++层的 Surface 对象 surface 。
 
+参数 dirtyRectObj 指向的是一个Java层的Rect对象，它描述的是应用程序窗口即将要重绘的一块矩形区域，函数接下来就将它所描述的矩形区域转换成一个C++层的Region对象 dirtyRectPtr 来表示。
+
+函数接下来就调用前面所获得的C++层的Surface对象surface的成员函数 lock 来获得一个图形缓冲区，这个图形缓冲区使用一个 SurfaceInfo 对象 outBuffer 来描述，
+其中，图形缓冲区的地址就保存在它的成员变量bits中。
+
+获得图形缓冲区之后，我们就可以在上面绘制应用程序窗口的UI了。由于Java层的应用程序窗口是通Skia图形库来绘制应用程序窗口的UI的，
+而Skia图形库在绘制UI时，是需要一块画布的，因此，函数接下来就会将前面所获得的图形缓冲区封装在一块画布中。
+
+从前面Android应用程序窗口（Activity）的绘图表面（Surface）的创建过程分析一文还可以知道，每一个Java层的Surface对象内部都有一块画布，
+这块画布是通过它的成员变量 mCanvas 所指向的一个Java层的 CompatibleCanvas 对象来描述的。so是一个类型为so_t的结构体，
+它的成员变量canvas描述的是Java层的Surface类的成员变量mCanva在类中的偏移量，
+因此，通过这个偏移量就可以获得参数clazz所指向的一个Java层的Surface对象的内部的一块类型为 CompatibleCanvas 的画布canvas。
+
+画布canvas的类型为Java层的 CompatibleCanvas ，它是从Canvas类继承下来的。Canvas类有一个成员变量 mNativeCanvas ，
+它指向的是一个C++层的SkCanvas对象，这个C++层的SkCanvas对象描述的就是Skia图形库绘制应用程序窗口UI时所需要的画布。
+no是一个类型为no_t的结构体，它的成员变量native_canvas描述的是Java层的Canvas类的成员变量 mNativeCanvas 在类中的偏移量，
+因此，通过这个偏移量就可以获得变量canvas所指向的一个Java层的CompatibleCanvas对象的内部的一块类型为SkCanvas的画布 nativeCanvas 。
+
+获得了Skia图形库所需要的画布 nativeCanvas 之后，函数就可以将前面所获得的图形缓冲区的地址，
+即ANativeWindow_Buffer对象 outBuffer 的成员变量bits封装到它内部去了，这是通过调用它的成员函数setPixels来实现的。
+
+函数在将与C++层的SkCanvas画布 nativeCanvas 所关联的一个Java层的CompatibleCanvas画布canvas返回给调用者之前，还会将画布的当前堆栈状态保存下来，
+以便在绘制完成应用程序窗口的UI之后，可以恢复回来，这是通过调用C++层的SkCanvas画布nativeCanvas的成员函数save来实现的。
+画布的当前堆栈状态是通过一个整数来描述的，这个整数即为C++层的SkCanvas画布nativeCanvas的成员函数save的返回值saveCount，
+它会被保存在参数clazz所描述的一个Java层的Surface对象的成员变量mSaveCount中，等到应用程序窗口的UI绘制完成之后，就可以通过这个整数来恢复画布的堆栈状态了。
+
+接下来，我们继续分析C++层的Surface类的成员函数lock的实现，以便可以了解用来创建绘制应用程序窗口UI所需要的画布的图形缓冲区是如何获得的。
+
+
+*/
 static jint nativeLockCanvas(JNIEnv* env, jclass clazz,
         jint nativeObject, jobject canvasObj, jobject dirtyRectObj) {
     sp<Surface> surface(reinterpret_cast<Surface *>(nativeObject));
@@ -266,7 +299,16 @@ static jint nativeLockCanvas(JNIEnv* env, jclass clazz,
     lockedSurface->incStrong(&sRefBaseOwner);
     return (int) lockedSurface.get();
 }
+/*wwxx wms study part7 三.11、
+函数接下来主要就是做两件事情：
+1、swapCanvasPtr
+2、 请求SurfaceFlinger服务渲染Surface对象surface所描述的应用程序窗口的绘图表面。
+   应用程序窗口的UI是绘制在 SkCanvas 对象 nativeCanva s所描述的一块画布上的，
+   而这块画布所使用的图形缓冲区是保存在Surface对象surface的内部的，
+   因此，函数就调用Surface对象surface的成员函数unlockAndPost来请求SurfaceFlinger服务渲染这块图形缓冲区。
+接下来，我们就继续分析C++层的Surface类的成员函数unlockAndPost的实现，以便可以了解用来绘制应用程序窗口UI的图形缓冲区是如何渲染的。   
 
+*/
 static void nativeUnlockCanvasAndPost(JNIEnv* env, jclass clazz,
         jint nativeObject, jobject canvasObj) {
     sp<Surface> surface(reinterpret_cast<Surface *>(nativeObject));
