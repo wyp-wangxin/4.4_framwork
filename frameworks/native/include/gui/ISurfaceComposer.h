@@ -42,6 +42,12 @@ class IMemoryHeap;
 /*
  * This class defines the Binder IPC interface for accessing various
  * SurfaceFlinger features.
+wwxx wms study part8 1、
+
+SurfaceFlinger服务实现的接口为ISurfaceComposer
+        ISurfaceComposer 接口有13个成员函数，下面我们就简单介绍一下：具体看每一个函数后面的注释。
+
+
  */
 class ISurfaceComposer: public IInterface {
 public:
@@ -61,7 +67,7 @@ public:
     /* create connection with surface flinger, requires
      * ACCESS_SURFACE_FLINGER permission
      */
-    virtual sp<ISurfaceComposerClient> createConnection() = 0;
+    virtual sp<ISurfaceComposerClient> createConnection() = 0;//Android应用程序通过它来请求SurfaceFlinger服务建立一个连接，具体可以参考Android应用程序与SurfaceFlinger服务的连接过程分析一文。
 
     /* create a graphic buffer allocator
      */
@@ -93,7 +99,7 @@ public:
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission
      */
-    virtual void bootFinished() = 0;
+    virtual void bootFinished() = 0;//WindowManagerService通过它来告诉SurfaceFlinger服务，系统启动完成了，这时候SurfaceFlinger服务就会停止执行开机动画，具体可以参考Android系统的开机画面显示过程分析一文。
 
     /* verify that an IGraphicBufferProducer was created by SurfaceFlinger.
      */
