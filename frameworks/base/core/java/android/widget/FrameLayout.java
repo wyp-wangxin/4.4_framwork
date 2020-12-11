@@ -421,6 +421,7 @@ public class FrameLayout extends ViewGroup {
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         layoutChildren(left, top, right, bottom, false /* no force left gravity */);
+        
     }
 
     void layoutChildren(int left, int top, int right, int bottom,

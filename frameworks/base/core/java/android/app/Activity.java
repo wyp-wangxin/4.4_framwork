@@ -5202,7 +5202,11 @@ public class Activity extends ContextThemeWrapper
     final void setParent(Activity parent) {
         mParent = parent;
     }
-
+    /*
+    D/Activity( 8412):      at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:2144)
+    D/Activity( 8412):      at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:2245)
+	D/Activity( 8412):      at android.app.Activity.attach(Activity.java:5250)
+    */
     final void attach(Context context, ActivityThread aThread, Instrumentation instr, IBinder token,
             Application application, Intent intent, ActivityInfo info, CharSequence title, 
             Activity parent, String id, NonConfigurationInstances lastNonConfigurationInstances,

@@ -180,12 +180,12 @@ public final class ViewRootImpl implements ViewParent,
 
     final Context mContext;
     /*wwxx wms study part5 
-    ViewRootimpl 类有一个成员变量 mWindowSession，它指向了一个实现了IWindowSession接口的Session代理对象。当应用程序进程启动第一个Activity组件的时候，
+    ViewRootimpl 类有一个成员变量 mWindowSession ，它指向了一个实现了IWindowSession接口的Session代理对象。当应用程序进程启动第一个Activity组件的时候，
     它就会请求WindowManagerService服务发送一个建立连接的Binder进程间通信请求。WindowManagerService服务接收到这个请求之后，就会在内部创建一个类型为Session的Binder本地对象，
-    并且将这个Binder本地对象返回给应用程序进程，后者于是就会得到一个Session代理对象，并且保存在 ViewRootimpl 类的静态成员变量mWindowSession中。
+    并且将这个Binder本地对象返回给应用程序进程，后者于是就会得到一个Session代理对象，并且保存在 ViewRootimpl 类的静态成员变量 mWindowSession 中。
 
     有了这个Session代理对象之后，应用程序进程就可以在启动Activity组件的时候，调用它的成员函数add来将与该Activity组件所关联的一个W对象传递给WindowManagerService服务，
-    后者于是就会得到一个W代理对象，并且会以这个W代理对象来创建一个WindowState对象，即将这个W代理对象保存在新创建的WindowState对象的成员变量mClient中。
+    后者于是就会得到一个W代理对象，并且会以这个W代理对象来创建一个WindowState对象，即将这个W代理对象保存在新创建的WindowState对象的成员变量 mClient 中。
     这个WindowState对象的其余成员变量的描述可以参考前面Android应用程序窗口（Activity）实现框架简要介绍和学习计划一文的图7，这里不再详述。
 
 

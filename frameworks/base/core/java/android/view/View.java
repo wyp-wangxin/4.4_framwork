@@ -14427,7 +14427,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      *
      * @param canvas The Canvas to which the View is rendered.
      */
-    /*wwxx wms study part7 二.8、
+    /*wwxx wms study part7 三.8、
 	1. 绘制当前视图的背景。
 
 	2. 保存当前画布的堆栈状态，并且在在当前画布上创建额外的图层，以便接下来可以用来绘制当前视图在滑动时的边框渐变效果。

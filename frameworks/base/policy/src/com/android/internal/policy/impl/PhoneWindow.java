@@ -3209,7 +3209,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
     这一步执行完成之后，应用程序窗口视图就创建完成了，回到前面的Step 1中，即ActivityThread类的成员函数 handleLaunchActivity 中，
     接下来就会调用ActivityThread类的另外一个成员函数 handleResumeActivity 来激活正在启动的Activity组件。由于在是第一次激活该Activity组件，
-    因此，在激活之前，还会为该Activity组件创建一个 ViewRoot 对象，并且与前面所创建的应用程序窗口视图关联起来
+    因此，在激活之前，还会为该Activity组件创建一个 ViewRootImpl 对象，并且与前面所创建的应用程序窗口视图关联起来
     ，以便后面可以通过该ViewRoot对象来控制应用程序窗口视图的UI展现。
 
 

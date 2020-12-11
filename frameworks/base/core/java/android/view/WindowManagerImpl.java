@@ -69,7 +69,7 @@ public final class WindowManagerImpl implements WindowManager {
     public WindowManagerImpl createPresentationWindowManager(Display display) {
         return new WindowManagerImpl(display, mParentWindow);
     }
-    /*wwxx wms study part2 11、
+    /*wwxx wms study part4 11、
     从前面Android应用程序窗口（Activity）的窗口对象（Window）的创建过程分析一文可以知道， WindowManagerImpl 类的成员变量 mGlobal 指向的是一个 WindowManagerGlobal 对象，
     WindowManagerImpl 类的成员函数addView接下来调用 WindowManagerGlobal 类的成员函数addView来给参数view所描述的一个应用程序窗口视图对象关联一个ViewRoot对象。    
 
